@@ -1,10 +1,17 @@
-import { useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { formatPrice } from '../lib/excelParser.js'
 
 export default function Preview({ cards, settings }) {
-  const containerRef = useRef()
+  const maxCards = settings.gridColumns * settings.gridRows
+  const pages = useMemo(() => {
+    if (cards.length === 0) return [[]]
+    const result = []
+    for (let i = 0; i < cards.length; i += maxCards) {
+      result.push(cards.slice(i, i + maxCards))
+    }
+    return result
+  }, [cards, maxCards])
 
-  // プレビューのスケールを計算（画面にフィットさせる）
   const scale = useMemo(() => {
     const maxW = window.innerWidth - 480
     const maxH = window.innerHeight - 40
@@ -15,75 +22,76 @@ export default function Preview({ cards, settings }) {
 
   return (
     <div className="flex-1 overflow-auto flex items-start justify-center p-5 bg-[#f0ede6]">
-      <div className="flex flex-col items-center">
-        <div className="mb-3 text-xs text-[#a09580]">
+      <div className="flex flex-col items-center gap-6">
+        <div className="text-xs text-[#a09580]">
           プレビュー ({settings.canvasWidth} x {settings.canvasHeight}px) — {cards.length}枚
+          {pages.length > 1 && ` / ${pages.length}ページ`}
         </div>
 
-        {/* Scaled wrapper for preview */}
-        <div style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}>
-          {/* Actual canvas - this is what gets exported */}
-          <div
-            id="preview-canvas"
-            style={{
-              width: settings.canvasWidth,
-              height: settings.canvasHeight,
-              backgroundColor: settings.bgColor,
-              position: 'relative',
-              overflow: 'hidden',
-              fontFamily: "'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif",
-            }}
-          >
-            {/* Background image */}
-            {settings.bgImage && (
-              <img
-                src={settings.bgImage}
-                alt=""
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: settings.bgImageFit === 'stretch' ? 'fill' : settings.bgImageFit,
-                  zIndex: 0,
-                }}
-              />
-            )}
-
-            {/* Content layer */}
-            <div style={{ position: 'relative', zIndex: 1, height: '100%', display: 'flex', flexDirection: 'column' }}>
-              {/* Header */}
-              {settings.headerShow && (
-                <Header settings={settings} />
-              )}
-
-              {/* Card grid */}
-              <div style={{
-                flex: 1,
-                padding: `${settings.gridPaddingTop}px ${settings.gridPaddingX}px 10px`,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-              }}>
-                <CardGrid cards={cards} settings={settings} />
+        {pages.map((pageCards, pageIndex) => (
+          <div key={pageIndex} style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}>
+            {pages.length > 1 && (
+              <div className="text-center text-xs text-[#a09580] mb-1">
+                ページ {pageIndex + 1} / {pages.length}
               </div>
-
-              {/* Footer */}
-              {settings.footerShow && (
-                <div style={{
-                  padding: '8px 20px 12px',
-                  textAlign: 'center',
-                  fontSize: settings.footerFontSize,
-                  color: settings.footerColor,
-                  lineHeight: 1.4,
-                }}>
-                  {settings.footerText}
-                </div>
+            )}
+            <div
+              id={`preview-canvas-${pageIndex}`}
+              style={{
+                width: settings.canvasWidth,
+                height: settings.canvasHeight,
+                backgroundColor: settings.bgColor,
+                position: 'relative',
+                overflow: 'hidden',
+                fontFamily: "'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif",
+              }}
+            >
+              {settings.bgImage && (
+                <img
+                  src={settings.bgImage}
+                  alt=""
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: settings.bgImageFit === 'stretch' ? 'fill' : settings.bgImageFit,
+                    zIndex: 0,
+                  }}
+                />
               )}
+
+              <div style={{ position: 'relative', zIndex: 1, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                {settings.headerShow && (
+                  <Header settings={settings} />
+                )}
+
+                <div style={{
+                  flex: 1,
+                  padding: `${settings.gridPaddingTop}px ${settings.gridPaddingX}px 10px`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                }}>
+                  <CardGrid cards={pageCards} settings={settings} />
+                </div>
+
+                {settings.footerShow && (
+                  <div style={{
+                    padding: '8px 20px 12px',
+                    textAlign: 'center',
+                    fontSize: settings.footerFontSize,
+                    color: settings.footerColor,
+                    lineHeight: 1.4,
+                  }}>
+                    {settings.footerText}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        ))}
       </div>
     </div>
   )
@@ -144,9 +152,6 @@ function CardGrid({ cards, settings }) {
     )
   }
 
-  const maxCards = settings.gridColumns * settings.gridRows
-  const visibleCards = cards.slice(0, maxCards)
-
   return (
     <div style={{
       display: 'grid',
@@ -156,7 +161,7 @@ function CardGrid({ cards, settings }) {
       rowGap: settings.gridGapY,
       justifyContent: 'center',
     }}>
-      {visibleCards.map((card) => (
+      {cards.map((card) => (
         <CardCell key={card.id} card={card} settings={settings} />
       ))}
     </div>
@@ -171,7 +176,6 @@ function CardCell({ card, settings }) {
       width: settings.cardWidth,
       textAlign: 'center',
     }}>
-      {/* Card image container */}
       <div style={{
         width: settings.cardWidth,
         height: settings.cardHeight,
@@ -212,7 +216,6 @@ function CardCell({ card, settings }) {
           </div>
         )}
 
-        {/* PSA logo overlay */}
         {settings.showPsaBadge && card.type === 'PSA10' && (
           <img
             src="./psa-logo.png"
@@ -230,7 +233,6 @@ function CardCell({ card, settings }) {
         )}
       </div>
 
-      {/* Card name */}
       {settings.showCardName && (
         <div style={{
           fontSize: settings.cardNameFontSize,
@@ -248,7 +250,6 @@ function CardCell({ card, settings }) {
         </div>
       )}
 
-      {/* Price */}
       <div style={{
         fontSize: settings.priceFontSize,
         fontWeight: settings.priceFontWeight,

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 
 export default function CardSelector({ allCards, cards, setCards }) {
   const [search, setSearch] = useState('')
@@ -6,6 +6,7 @@ export default function CardSelector({ allCards, cards, setCards }) {
   const [priceFilter, setPriceFilter] = useState('withPrice')
   const [sortBy, setSortBy] = useState('priceDesc')
   const [detailCard, setDetailCard] = useState(null)
+  const lastClickedIndex = useRef(null)
 
   const categories = useMemo(() => {
     const tags = [...new Set(allCards.map(c => c.tag))]
@@ -30,13 +31,29 @@ export default function CardSelector({ allCards, cards, setCards }) {
 
   const selectedIds = new Set(cards.map(c => c.id))
 
-  const toggleCard = (card) => {
-    if (selectedIds.has(card.id)) {
-      setCards(cards.filter(c => c.id !== card.id))
+  const toggleCard = useCallback((card, index, shiftKey) => {
+    if (shiftKey && lastClickedIndex.current !== null) {
+      // Shift+クリック: 範囲選択
+      const start = Math.min(lastClickedIndex.current, index)
+      const end = Math.max(lastClickedIndex.current, index)
+      const rangeCards = filteredCards.slice(start, end + 1)
+      const newCards = [...cards]
+      for (const c of rangeCards) {
+        if (!selectedIds.has(c.id)) {
+          newCards.push(c)
+        }
+      }
+      setCards(newCards)
     } else {
-      setCards([...cards, card])
+      // 通常クリック: トグル
+      if (selectedIds.has(card.id)) {
+        setCards(cards.filter(c => c.id !== card.id))
+      } else {
+        setCards([...cards, card])
+      }
     }
-  }
+    lastClickedIndex.current = index
+  }, [cards, setCards, filteredCards, selectedIds])
 
   const selectAll = () => {
     const newCards = [...cards]
@@ -124,9 +141,13 @@ export default function CardSelector({ allCards, cards, setCards }) {
         </span>
       </div>
 
+      <div className="text-[10px] text-[#a09580]">
+        Shift+クリックで範囲選択
+      </div>
+
       {/* Card list */}
       <div className="max-h-80 overflow-y-auto space-y-0.5 bg-[#faf6ed] rounded p-1 border border-[#e0d9c8]">
-        {filteredCards.map(card => {
+        {filteredCards.map((card, index) => {
           const isSelected = selectedIds.has(card.id)
           return (
             <div
@@ -162,12 +183,12 @@ export default function CardSelector({ allCards, cards, setCards }) {
               <div className={`font-mono text-right whitespace-nowrap ${isSelected ? 'text-[#b8860b]' : 'text-[#7a7060]'}`}>
                 {card.price > 0 ? `¥${card.price.toLocaleString()}` : '-'}
               </div>
-              {/* Check - click to toggle */}
+              {/* Check - click to toggle, shift+click for range */}
               <div
                 className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 cursor-pointer ${
                   isSelected ? 'bg-[#d4a517] border-[#d4a517]' : 'border-[#d4cbb5] hover:border-[#d4a517]'
                 }`}
-                onClick={() => toggleCard(card)}
+                onClick={(e) => toggleCard(card, index, e.shiftKey)}
               >
                 {isSelected && <span className="text-white text-[10px]">✓</span>}
               </div>
