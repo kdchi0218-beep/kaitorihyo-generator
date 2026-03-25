@@ -3,20 +3,22 @@ import { useState } from 'react'
 const USERS = [
   {
     email: 'sougoukanri@card-desk.com',
-    hash: '979be31736646624adc795ea0916f74d7e20eef4256dde7a100c33852375904e',
+    hash: '222817638',
   },
   {
     email: 'tsuchiya@aclass-group.com',
-    hash: '914dbd8d2fbf410e4d31139db9b26af4804486fed6b8e25accdfc0653d0e3df7',
+    hash: '-1943143077',
   },
 ]
 
-async function sha256(text) {
-  const encoded = new TextEncoder().encode(text)
-  const buffer = await crypto.subtle.digest('SHA-256', encoded)
-  return Array.from(new Uint8Array(buffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
+function simpleHash(text) {
+  let hash = 0
+  for (let i = 0; i < text.length; i++) {
+    const char = text.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash
+  }
+  return String(hash)
 }
 
 export default function Login({ onLogin }) {
@@ -25,12 +27,12 @@ export default function Login({ onLogin }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
-    const hash = await sha256(password)
+    const hash = simpleHash(password)
     const user = USERS.find(u => u.email === email && u.hash === hash)
 
     if (user) {
