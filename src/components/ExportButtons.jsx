@@ -25,7 +25,8 @@ export default function ExportButtons({ cards, settings }) {
       const baseName = `${settings.headerText || '買取表'}_${new Date().toISOString().slice(0, 10)}`
       await exportAllPages(elements, format, baseName)
     } catch (err) {
-      alert('画像出力に失敗しました: ' + err.message)
+      console.error('Export error:', err)
+      alert('画像出力に失敗しました: ' + (err?.message || String(err)))
     } finally {
       setExporting(false)
     }

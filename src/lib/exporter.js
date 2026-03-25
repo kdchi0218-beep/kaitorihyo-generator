@@ -35,7 +35,13 @@ export async function exportAllPages(pageElements, format = 'png', baseName = 'è
     link.click()
   } else {
     const mod = await import('jszip')
-    const JSZip = mod.default || mod
+    console.log('jszip module:', mod)
+    console.log('jszip mod.default:', mod.default)
+    console.log('jszip typeof mod.default:', typeof mod.default)
+    const JSZip = typeof mod.default === 'function' ? mod.default
+      : typeof mod === 'function' ? mod
+      : mod.default?.default || mod
+    console.log('JSZip resolved:', JSZip, typeof JSZip)
     const zip = new JSZip()
     for (const img of images) {
       const base64 = img.dataUrl.split(',')[1]
