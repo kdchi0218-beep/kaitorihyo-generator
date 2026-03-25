@@ -12,7 +12,7 @@ const STORAGE_KEYS = {
 
 function loadFromStorage(key, fallback) {
   try {
-    const data = sessionStorage.getItem(key)
+    const data = localStorage.getItem(key)
     return data ? JSON.parse(data) : fallback
   } catch {
     return fallback
@@ -20,28 +20,44 @@ function loadFromStorage(key, fallback) {
 }
 
 function App() {
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem('auth') === 'true')
-  const [userEmail, setUserEmail] = useState(() => sessionStorage.getItem('userEmail') || '')
+  const [authed, setAuthed] = useState(() => localStorage.getItem('auth') === 'true')
+  const [userEmail, setUserEmail] = useState(() => localStorage.getItem('userEmail') || '')
   const [cards, setCards] = useState(() => loadFromStorage(STORAGE_KEYS.cards, []))
   const [allCards, setAllCards] = useState(() => loadFromStorage(STORAGE_KEYS.allCards, []))
   const [settings, setSettings] = useState(() => loadFromStorage(STORAGE_KEYS.settings, DEFAULT_SETTINGS))
 
-  // 変更時に自動保存
   useEffect(() => {
-    sessionStorage.setItem(STORAGE_KEYS.cards, JSON.stringify(cards))
+    localStorage.setItem(STORAGE_KEYS.cards, JSON.stringify(cards))
   }, [cards])
 
   useEffect(() => {
-    sessionStorage.setItem(STORAGE_KEYS.allCards, JSON.stringify(allCards))
+    localStorage.setItem(STORAGE_KEYS.allCards, JSON.stringify(allCards))
   }, [allCards])
 
   useEffect(() => {
-    sessionStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings))
+    localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings))
   }, [settings])
 
   const updateSettings = useCallback((key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }))
   }, [])
+
+  const handleClearData = () => {
+    setCards([])
+    setAllCards([])
+    localStorage.removeItem(STORAGE_KEYS.cards)
+    localStorage.removeItem(STORAGE_KEYS.allCards)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('auth')
+    localStorage.removeItem('userEmail')
+    localStorage.removeItem(STORAGE_KEYS.cards)
+    localStorage.removeItem(STORAGE_KEYS.allCards)
+    localStorage.removeItem(STORAGE_KEYS.settings)
+    setAuthed(false)
+    setUserEmail('')
+  }
 
   if (!authed) {
     return <Login onLogin={(email) => { setAuthed(true); setUserEmail(email) }} />
@@ -58,6 +74,8 @@ function App() {
         updateSettings={updateSettings}
         setSettings={setSettings}
         userEmail={userEmail}
+        onClearData={handleClearData}
+        onLogout={handleLogout}
       />
       <Preview cards={cards} settings={settings} />
     </>

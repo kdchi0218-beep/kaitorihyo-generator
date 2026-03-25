@@ -36,8 +36,8 @@ export default function Login({ onLogin }) {
     const user = USERS.find(u => u.email === email && u.hash === hash)
 
     if (user) {
-      sessionStorage.setItem('auth', 'true')
-      sessionStorage.setItem('userEmail', user.email)
+      localStorage.setItem('auth', 'true')
+      localStorage.setItem('userEmail', user.email)
       onLogin(user.email)
     } else {
       setError('メールアドレスまたはパスワードが正しくありません')
