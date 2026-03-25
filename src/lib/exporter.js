@@ -1,6 +1,4 @@
 import { toPng, toJpeg } from 'html-to-image'
-import * as JSZipModule from 'jszip'
-const JSZip = JSZipModule.default || JSZipModule
 
 export async function exportAllPages(pageElements, format = 'png', baseName = '買取表') {
   const fn = format === 'jpeg' ? toJpeg : toPng
@@ -36,6 +34,8 @@ export async function exportAllPages(pageElements, format = 'png', baseName = '�
     link.href = images[0].dataUrl
     link.click()
   } else {
+    const mod = await import('jszip')
+    const JSZip = mod.default || mod
     const zip = new JSZip()
     for (const img of images) {
       const base64 = img.dataUrl.split(',')[1]
