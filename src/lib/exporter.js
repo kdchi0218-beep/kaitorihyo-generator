@@ -1,5 +1,9 @@
 import { toPng, toJpeg } from 'html-to-image'
 
+const API_BASE = location.hostname === 'localhost'
+  ? 'http://localhost:3001'
+  : ''
+
 export async function exportAllPages(pageElements, format = 'png', baseName = '買取表') {
   const fn = format === 'jpeg' ? toJpeg : toPng
   const ext = format === 'jpeg' ? '.jpg' : '.png'
@@ -9,7 +13,9 @@ export async function exportAllPages(pageElements, format = 'png', baseName = '�
     const el = pageElements[i]
     if (!el) continue
 
-    await convertImagesToBase64(el)
+    // 全画像をbase64に変換してからhtml-to-imageに渡す
+    const converted = await convertImagesToBase64(el)
+    console.log(`ページ${i + 1}: ${converted.success}/${converted.total}枚変換成功`)
 
     const dataUrl = await fn(el, {
       quality: format === 'jpeg' ? 0.95 : 1.0,
@@ -48,29 +54,39 @@ export async function exportAllPages(pageElements, format = 'png', baseName = '�
 
 async function convertImagesToBase64(container) {
   const imgs = Array.from(container.querySelectorAll('img'))
+  let success = 0
+  const total = imgs.filter(img => img.src && !img.src.startsWith('data:') && !img.src.startsWith('blob:')).length
 
   await Promise.all(imgs.map(async (img) => {
     const src = img.src
     if (!src || src.startsWith('data:') || src.startsWith('blob:')) return
 
-    // 直接fetch
+    // 自前プロキシ経由でbase64変換
     try {
-      const res = await fetch(src, { mode: 'cors', cache: 'no-cache' })
+      const res = await fetch(`${API_BASE}/api/image-proxy?url=${encodeURIComponent(src)}`)
+      if (!res.ok) throw new Error(`${res.status}`)
       const blob = await res.blob()
-      img.src = await blobToDataUrl(blob)
+      const dataUrl = await blobToDataUrl(blob)
+      img.src = dataUrl
+      success++
       return
-    } catch {}
+    } catch (e) {
+      console.warn('プロキシ失敗:', e.message, src.substring(0, 80))
+    }
 
-    // CORSプロキシ経由
+    // 直接fetch（CORS対応サーバーの場合）
     try {
-      const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(src)}`)
+      const res = await fetch(src, { mode: 'cors' })
       const blob = await res.blob()
       img.src = await blobToDataUrl(blob)
+      success++
       return
     } catch {
-      console.warn('画像変換失敗:', src)
+      console.warn('直接fetchも失敗:', src.substring(0, 80))
     }
   }))
+
+  return { success, total }
 }
 
 function blobToDataUrl(blob) {
