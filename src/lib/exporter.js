@@ -61,28 +61,31 @@ async function convertImagesToBase64(container) {
     const src = img.src
     if (!src || src.startsWith('data:') || src.startsWith('blob:')) return
 
-    // 自前プロキシ経由でbase64変換
+    const isSameOrigin = src.startsWith(location.origin)
+
+    // 同一オリジン → 直接fetch（プロキシ不要）
+    if (isSameOrigin) {
+      try {
+        const res = await fetch(src)
+        const blob = await res.blob()
+        img.src = await blobToDataUrl(blob)
+        success++
+        return
+      } catch {
+        console.warn('同一オリジンfetch失敗:', src.substring(0, 80))
+      }
+    }
+
+    // クロスオリジン → プロキシ経由
     try {
       const res = await fetch(`${API_BASE}/api/image-proxy?url=${encodeURIComponent(src)}`)
       if (!res.ok) throw new Error(`${res.status}`)
       const blob = await res.blob()
-      const dataUrl = await blobToDataUrl(blob)
-      img.src = dataUrl
+      img.src = await blobToDataUrl(blob)
       success++
       return
     } catch (e) {
       console.warn('プロキシ失敗:', e.message, src.substring(0, 80))
-    }
-
-    // 直接fetch（CORS対応サーバーの場合）
-    try {
-      const res = await fetch(src, { mode: 'cors' })
-      const blob = await res.blob()
-      img.src = await blobToDataUrl(blob)
-      success++
-      return
-    } catch {
-      console.warn('直接fetchも失敗:', src.substring(0, 80))
     }
   }))
 
