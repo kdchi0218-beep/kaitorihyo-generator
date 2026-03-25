@@ -98,6 +98,31 @@ app.delete('/api/templates/:id', async (req, res) => {
   }
 })
 
+// 画像プロキシ: Firebase Storage等のCORS非対応画像を中継
+app.get('/api/image-proxy', async (req, res) => {
+  try {
+    const { url } = req.query
+    if (!url) return res.status(400).json({ error: 'url required' })
+
+    const parsed = new URL(url)
+    const allowed = ['firebasestorage.googleapis.com', 'storage.googleapis.com']
+    if (!allowed.includes(parsed.hostname)) {
+      return res.status(403).json({ error: 'domain not allowed' })
+    }
+
+    const response = await fetch(url)
+    if (!response.ok) return res.status(response.status).end()
+
+    res.set('Content-Type', response.headers.get('content-type') || 'image/png')
+    res.set('Cache-Control', 'public, max-age=3600')
+    const buffer = Buffer.from(await response.arrayBuffer())
+    res.send(buffer)
+  } catch (err) {
+    console.error('Image proxy error:', err.message)
+    res.status(500).json({ error: 'proxy error' })
+  }
+})
+
 app.listen(3001, () => {
   console.log('Kaitori API running on port 3001')
 })
