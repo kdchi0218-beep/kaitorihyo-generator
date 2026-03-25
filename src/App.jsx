@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS } from './lib/defaults.js'
 
 function App() {
   const [authed, setAuthed] = useState(() => sessionStorage.getItem('auth') === 'true')
+  const [userEmail, setUserEmail] = useState(() => sessionStorage.getItem('userEmail') || '')
   const [cards, setCards] = useState([])
   const [allCards, setAllCards] = useState([])
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
@@ -15,7 +16,7 @@ function App() {
   }, [])
 
   if (!authed) {
-    return <Login onLogin={() => setAuthed(true)} />
+    return <Login onLogin={(email) => { setAuthed(true); setUserEmail(email) }} />
   }
 
   return (
@@ -28,6 +29,7 @@ function App() {
         settings={settings}
         updateSettings={updateSettings}
         setSettings={setSettings}
+        userEmail={userEmail}
       />
       <Preview cards={cards} settings={settings} />
     </>

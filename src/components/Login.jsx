@@ -37,7 +37,8 @@ export default function Login({ onLogin }) {
 
     if (user) {
       sessionStorage.setItem('auth', 'true')
-      onLogin()
+      sessionStorage.setItem('userEmail', user.email)
+      onLogin(user.email)
     } else {
       setError('メールアドレスまたはパスワードが正しくありません')
     }

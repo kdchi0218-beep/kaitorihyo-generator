@@ -13,7 +13,7 @@ import FooterSettings from './settings/FooterSettings.jsx'
 import CardSelector from './CardSelector.jsx'
 import ExportButtons from './ExportButtons.jsx'
 
-export default function Sidebar({ allCards, setAllCards, cards, setCards, settings, updateSettings, setSettings }) {
+export default function Sidebar({ allCards, setAllCards, cards, setCards, settings, updateSettings, setSettings, userEmail }) {
   const selectedCount = cards.length
 
   return (
@@ -35,7 +35,7 @@ export default function Sidebar({ allCards, setAllCards, cards, setCards, settin
         </AccordionSection>
 
         <AccordionSection title="テンプレート">
-          <TemplateManager settings={settings} setSettings={setSettings} />
+          <TemplateManager settings={settings} setSettings={setSettings} userEmail={userEmail} />
         </AccordionSection>
 
         <AccordionSection title="キャンバス・出力設定">

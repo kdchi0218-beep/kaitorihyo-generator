@@ -1,19 +1,24 @@
 import { useState, useEffect } from 'react'
-import { loadTemplates, saveTemplate, deleteTemplate } from '../lib/templates.js'
+import { loadTemplates, saveTemplate, updateTemplate, deleteTemplate } from '../lib/templates.js'
 import { DEFAULT_SETTINGS, TEMPLATE_PRESETS } from '../lib/defaults.js'
 
-export default function TemplateManager({ settings, setSettings }) {
+export default function TemplateManager({ settings, setSettings, userEmail }) {
   const [templates, setTemplates] = useState([])
   const [newName, setNewName] = useState('')
   const [message, setMessage] = useState(null)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    setTemplates(loadTemplates())
-  }, [])
+    setLoading(true)
+    loadTemplates(userEmail).then(t => {
+      setTemplates(t)
+      setLoading(false)
+    })
+  }, [userEmail])
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!newName.trim()) return
-    const updated = saveTemplate(newName.trim(), settings)
+    const updated = await saveTemplate(newName.trim(), settings, userEmail)
     setTemplates(updated)
     setNewName('')
     showMessage('保存しました')
@@ -24,11 +29,17 @@ export default function TemplateManager({ settings, setSettings }) {
     showMessage(`「${template.name}」を読み込みました`)
   }
 
-  const handleDelete = (name) => {
-    if (!confirm(`「${name}」を削除しますか？`)) return
-    const updated = deleteTemplate(name)
+  const handleDelete = async (template) => {
+    if (!confirm(`「${template.name}」を削除しますか？`)) return
+    const updated = await deleteTemplate(template.id, template.name, userEmail)
     setTemplates(updated)
     showMessage('削除しました')
+  }
+
+  const handleOverwrite = async (template) => {
+    const updated = await updateTemplate(template.id, template.name, settings, userEmail)
+    setTemplates(updated)
+    showMessage(`「${template.name}」を上書き保存しました`)
   }
 
   const handlePreset = (preset) => {
@@ -90,12 +101,16 @@ export default function TemplateManager({ settings, setSettings }) {
         </div>
       </div>
 
+      {loading && (
+        <div className="text-xs text-[#a09580]">読み込み中...</div>
+      )}
+
       {templates.length > 0 && (
         <div>
           <label className="text-xs text-[#7a7060] block mb-1">保存済みテンプレート</label>
           <div className="space-y-1">
             {templates.map(t => (
-              <div key={t.name} className="flex items-center gap-2 bg-[#f3eee0] rounded px-2 py-1.5 border border-[#e0d9c8]">
+              <div key={t.id || t.name} className="flex items-center gap-2 bg-[#f3eee0] rounded px-2 py-1.5 border border-[#e0d9c8]">
                 <span className="flex-1 text-xs text-[#3a3530] truncate">{t.name}</span>
                 <button
                   onClick={() => handleLoad(t)}
@@ -104,33 +119,18 @@ export default function TemplateManager({ settings, setSettings }) {
                   読込
                 </button>
                 <button
-                  onClick={() => handleDelete(t.name)}
+                  onClick={() => handleOverwrite(t)}
+                  className="text-xs px-2 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 cursor-pointer"
+                >
+                  上書
+                </button>
+                <button
+                  onClick={() => handleDelete(t)}
                   className="text-xs px-2 py-0.5 rounded bg-red-100 hover:bg-red-200 text-red-600 cursor-pointer"
                 >
                   削除
                 </button>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {templates.length > 0 && (
-        <div>
-          <label className="text-xs text-[#7a7060] block mb-1">上書き保存</label>
-          <div className="flex flex-wrap gap-1">
-            {templates.map(t => (
-              <button
-                key={t.name}
-                onClick={() => {
-                  const updated = saveTemplate(t.name, settings)
-                  setTemplates(updated)
-                  showMessage(`「${t.name}」を上書き保存しました`)
-                }}
-                className="text-xs px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 cursor-pointer"
-              >
-                {t.name}
-              </button>
             ))}
           </div>
         </div>
