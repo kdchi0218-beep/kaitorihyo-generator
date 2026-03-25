@@ -35,13 +35,7 @@ export async function exportAllPages(pageElements, format = 'png', baseName = '�
     link.click()
   } else {
     const mod = await import('jszip')
-    console.log('jszip module:', mod)
-    console.log('jszip mod.default:', mod.default)
-    console.log('jszip typeof mod.default:', typeof mod.default)
-    const JSZip = typeof mod.default === 'function' ? mod.default
-      : typeof mod === 'function' ? mod
-      : mod.default?.default || mod
-    console.log('JSZip resolved:', JSZip, typeof JSZip)
+    const JSZip = typeof mod.default === 'function' ? mod.default : mod
     const zip = new JSZip()
     for (const img of images) {
       const base64 = img.dataUrl.split(',')[1]
@@ -62,6 +56,21 @@ async function convertImagesToBase64(container) {
     const src = img.src
     if (!src || src.startsWith('data:') || src.startsWith('blob:')) return
 
+    // 既にブラウザに読み込み済みの画像をcanvas経由でbase64化（CORS fetch不要）
+    try {
+      if (img.complete && img.naturalWidth > 0) {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0)
+        img.src = canvas.toDataURL('image/png')
+        return
+      }
+    } catch {
+      // tainted canvas（crossOrigin未設定）の場合はfetchにフォールバック
+    }
+
     try {
       const response = await fetch(src, { mode: 'cors', cache: 'no-cache' })
       const blob = await response.blob()
@@ -72,7 +81,7 @@ async function convertImagesToBase64(container) {
       })
       img.src = dataUrl
     } catch {
-      // CORS非対応の画像はスキップ（画像なしで出力続行）
+      // CORS非対応の画像はスキップ
     }
   })
   await Promise.all(promises)
