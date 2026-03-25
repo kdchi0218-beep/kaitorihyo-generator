@@ -65,19 +65,7 @@ async function convertImagesToBase64(container) {
       })
       img.src = dataUrl
     } catch {
-      try {
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(src)}`
-        const response = await fetch(proxyUrl)
-        const blob = await response.blob()
-        const dataUrl = await new Promise((resolve) => {
-          const reader = new FileReader()
-          reader.onloadend = () => resolve(reader.result)
-          reader.readAsDataURL(blob)
-        })
-        img.src = dataUrl
-      } catch {
-        console.warn('画像変換失敗:', src)
-      }
+      // CORS非対応の画像はスキップ（画像なしで出力続行）
     }
   })
   await Promise.all(promises)

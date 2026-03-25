@@ -1,15 +1,14 @@
 import pg from 'pg'
 
 const pool = new pg.Pool({
-  database: 'kaitori',
-  user: 'kaitori_user',
-  password: 'kaitori_pass_2026',
-  host: 'localhost',
-  port: 5432,
+  database: process.env.DB_NAME || 'kaitori',
+  user: process.env.DB_USER || 'kaitori_user',
+  password: process.env.DB_PASSWORD,
+  host: process.env.DB_HOST || 'localhost',
+  port: Number(process.env.DB_PORT) || 5432,
 })
 
 async function setup() {
-  // Create database and user (run as postgres superuser first)
   console.log('Creating table...')
 
   await pool.query(`
