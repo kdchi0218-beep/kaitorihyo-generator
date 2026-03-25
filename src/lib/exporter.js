@@ -2,7 +2,7 @@ import { toPng, toJpeg } from 'html-to-image'
 
 const API_BASE = location.hostname === 'localhost'
   ? 'http://localhost:3001'
-  : ''
+  : '/kaitori'
 
 export async function exportAllPages(pageElements, format = 'png', baseName = '買取表') {
   const fn = format === 'jpeg' ? toJpeg : toPng
