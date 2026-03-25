@@ -9,10 +9,14 @@ export default function ExportButtons({ cards, settings }) {
   const pageCount = Math.max(1, Math.ceil(cards.length / maxCards))
 
   const handleExport = async () => {
+    // DOMから全ページを取得（preview-canvas-0, preview-canvas-1, ...）
     const elements = []
-    for (let i = 0; i < pageCount; i++) {
+    let i = 0
+    while (true) {
       const el = document.getElementById(`preview-canvas-${i}`)
-      if (el) elements.push(el)
+      if (!el) break
+      elements.push(el)
+      i++
     }
     if (elements.length === 0) return
 

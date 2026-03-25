@@ -65,6 +65,10 @@ export const DEFAULT_SETTINGS = {
   priceBgPaddingX: 6,
   priceBgPaddingY: 2,
 
+  // Placeholder (空きスロット埋め)
+  fillEmptySlots: true,
+  placeholderImage: './card-back.jpg',
+
   // Footer
   footerText: 'カードの傷およびケース傷、カード在庫状況等による増減がございますので予めご了承ください',
   footerFontSize: 10,

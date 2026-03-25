@@ -3,14 +3,29 @@ import { formatPrice } from '../lib/excelParser.js'
 
 export default function Preview({ cards, settings }) {
   const maxCards = settings.gridColumns * settings.gridRows
+
   const pages = useMemo(() => {
     if (cards.length === 0) return [[]]
     const result = []
     for (let i = 0; i < cards.length; i += maxCards) {
-      result.push(cards.slice(i, i + maxCards))
+      const pageCards = cards.slice(i, i + maxCards)
+      // 空きスロットをプレースホルダーで埋める
+      if (settings.fillEmptySlots && pageCards.length < maxCards) {
+        const emptyCount = maxCards - pageCards.length
+        for (let j = 0; j < emptyCount; j++) {
+          pageCards.push({
+            id: `placeholder_${i}_${j}`,
+            name: '',
+            price: 0,
+            imageUrl: settings.placeholderImage,
+            isPlaceholder: true,
+          })
+        }
+      }
+      result.push(pageCards)
     }
     return result
-  }, [cards, maxCards])
+  }, [cards, maxCards, settings.fillEmptySlots, settings.placeholderImage])
 
   const scale = useMemo(() => {
     const maxW = window.innerWidth - 480
@@ -170,6 +185,7 @@ function CardGrid({ cards, settings }) {
 
 function CardCell({ card, settings }) {
   const price = formatPrice(card.price, settings)
+  const isPlaceholder = card.isPlaceholder
 
   return (
     <div style={{
@@ -190,7 +206,7 @@ function CardCell({ card, settings }) {
           <img
             src={card.imageUrl}
             alt={card.name}
-            crossOrigin="anonymous"
+            crossOrigin={isPlaceholder ? undefined : 'anonymous'}
             style={{
               width: '100%',
               height: '100%',
@@ -216,7 +232,7 @@ function CardCell({ card, settings }) {
           </div>
         )}
 
-        {settings.showPsaBadge && card.type === 'PSA10' && (
+        {!isPlaceholder && settings.showPsaBadge && card.type === 'PSA10' && (
           <img
             src="./psa-logo.png"
             alt="PSA10"
@@ -233,7 +249,8 @@ function CardCell({ card, settings }) {
         )}
       </div>
 
-      {settings.showCardName && (
+      {/* プレースホルダーにはカード名・価格を表示しない */}
+      {!isPlaceholder && settings.showCardName && (
         <div style={{
           fontSize: settings.cardNameFontSize,
           color: settings.cardNameColor,
@@ -250,25 +267,35 @@ function CardCell({ card, settings }) {
         </div>
       )}
 
-      <div style={{
-        fontSize: settings.priceFontSize,
-        fontWeight: settings.priceFontWeight,
-        color: settings.priceColor,
-        marginTop: settings.priceMarginTop || 2,
-        letterSpacing: '0.5px',
-        ...(settings.priceStroke ? {
-          WebkitTextStroke: `${settings.priceStrokeWidth}px ${settings.priceStrokeColor}`,
-          paintOrder: 'stroke fill',
-        } : {}),
-        ...(settings.priceBgEnabled ? {
-          backgroundColor: settings.priceBgColor,
-          borderRadius: settings.priceBgRadius,
-          padding: `${settings.priceBgPaddingY}px ${settings.priceBgPaddingX}px`,
-          display: 'inline-block',
-        } : {}),
-      }}>
-        {price}
-      </div>
+      {!isPlaceholder && (
+        <div style={{
+          fontSize: settings.priceFontSize,
+          fontWeight: settings.priceFontWeight,
+          color: settings.priceColor,
+          marginTop: settings.priceMarginTop || 2,
+          letterSpacing: '0.5px',
+          ...(settings.priceStroke ? {
+            WebkitTextStroke: `${settings.priceStrokeWidth}px ${settings.priceStrokeColor}`,
+            paintOrder: 'stroke fill',
+          } : {}),
+          ...(settings.priceBgEnabled ? {
+            backgroundColor: settings.priceBgColor,
+            borderRadius: settings.priceBgRadius,
+            padding: `${settings.priceBgPaddingY}px ${settings.priceBgPaddingX}px`,
+            display: 'inline-block',
+          } : {}),
+        }}>
+          {price}
+        </div>
+      )}
+
+      {/* プレースホルダーは名前・価格分の高さを確保 */}
+      {isPlaceholder && settings.showCardName && (
+        <div style={{ height: `${settings.cardNameFontSize * 1.2 * settings.cardNameLines}px`, marginTop: 2 }} />
+      )}
+      {isPlaceholder && (
+        <div style={{ height: settings.priceFontSize, marginTop: settings.priceMarginTop || 2 }} />
+      )}
     </div>
   )
 }
