@@ -59,6 +59,7 @@ export const DEFAULT_SETTINGS = {
   priceStroke: false,
   priceStrokeColor: '#000000',
   priceStrokeWidth: 2,
+  priceBgFullWidth: false,
   priceBgEnabled: false,
   priceBgColor: '#000000',
   priceBgRadius: 4,

@@ -41,6 +41,7 @@ export default function PriceSettings({ settings, update }) {
         <SettingToggle label="価格の背景色" checked={settings.priceBgEnabled} onChange={v => update('priceBgEnabled', v)} />
         {settings.priceBgEnabled && (
           <>
+            <SettingToggle label="カード幅に合わせる" checked={settings.priceBgFullWidth} onChange={v => update('priceBgFullWidth', v)} />
             <SettingRow label="背景色">
               <input type="color" value={settings.priceBgColor} onChange={e => update('priceBgColor', e.target.value)} />
               <input type="text" value={settings.priceBgColor} onChange={e => update('priceBgColor', e.target.value)} className="w-20" />

@@ -282,7 +282,9 @@ function CardCell({ card, settings }) {
             backgroundColor: settings.priceBgColor,
             borderRadius: settings.priceBgRadius,
             padding: `${settings.priceBgPaddingY}px ${settings.priceBgPaddingX}px`,
-            display: 'inline-block',
+            display: settings.priceBgFullWidth ? 'block' : 'inline-block',
+            width: settings.priceBgFullWidth ? settings.cardWidth : undefined,
+            boxSizing: 'border-box',
           } : {}),
         }}>
           {price}
