@@ -1,5 +1,6 @@
 import { toPng, toJpeg } from 'html-to-image'
-import JSZip from 'jszip'
+import * as JSZipModule from 'jszip'
+const JSZip = JSZipModule.default || JSZipModule
 
 export async function exportAllPages(pageElements, format = 'png', baseName = '買取表') {
   const fn = format === 'jpeg' ? toJpeg : toPng
