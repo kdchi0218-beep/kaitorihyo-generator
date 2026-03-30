@@ -7,8 +7,9 @@
     "setup": "node setup-db.js"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.21.0",
     "pg": "^8.13.0",
-    "cors": "^2.8.5"
+    "puppeteer": "^24.40.0"
   }
 }
