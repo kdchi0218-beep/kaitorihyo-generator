@@ -36,9 +36,9 @@ export default function Preview({ cards, settings }) {
   }, [settings.canvasWidth, settings.canvasHeight])
 
   return (
-    <div className="flex-1 overflow-auto flex items-start justify-center p-5 bg-[#f0ede6]">
+    <div className="flex-1 overflow-auto flex items-start justify-center p-5 bg-[#eef1f6]">
       <div className="flex flex-col items-center gap-6">
-        <div className="text-xs text-[#a09580]">
+        <div className="text-xs text-[#8c95a4]">
           プレビュー ({settings.canvasWidth} x {settings.canvasHeight}px) — {cards.length}枚
           {pages.length > 1 && ` / ${pages.length}ページ`}
         </div>
@@ -46,7 +46,7 @@ export default function Preview({ cards, settings }) {
         {pages.map((pageCards, pageIndex) => (
           <div key={pageIndex} style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}>
             {pages.length > 1 && (
-              <div className="text-center text-xs text-[#a09580] mb-1">
+              <div className="text-center text-xs text-[#8c95a4] mb-1">
                 ページ {pageIndex + 1} / {pages.length}
               </div>
             )}
@@ -82,6 +82,10 @@ export default function Preview({ cards, settings }) {
                   <Header settings={settings} />
                 )}
 
+                {settings.showUpdateDate && settings.updateDatePosition === 'top' && (
+                  <UpdateDate settings={settings} />
+                )}
+
                 <div style={{
                   flex: 1,
                   padding: `${settings.gridPaddingTop}px ${settings.gridPaddingX}px 10px`,
@@ -91,6 +95,10 @@ export default function Preview({ cards, settings }) {
                 }}>
                   <CardGrid cards={pageCards} settings={settings} />
                 </div>
+
+                {settings.showUpdateDate && settings.updateDatePosition !== 'top' && (
+                  <UpdateDate settings={settings} />
+                )}
 
                 {settings.footerShow && (
                   <div style={{
@@ -108,6 +116,19 @@ export default function Preview({ cards, settings }) {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+function UpdateDate({ settings }) {
+  return (
+    <div style={{
+      padding: '4px 20px 0',
+      textAlign: settings.updateDateAlign || 'right',
+      fontSize: settings.updateDateFontSize,
+      color: settings.updateDateColor,
+    }}>
+      更新日: {new Date().toLocaleDateString('ja-JP')}
     </div>
   )
 }
@@ -172,11 +193,13 @@ function CardGrid({ cards, settings }) {
       display: 'grid',
       gridTemplateColumns: `repeat(${settings.gridColumns}, ${settings.cardWidth}px)`,
       gridTemplateRows: `repeat(${settings.gridRows}, auto)`,
+      gridAutoRows: 0,
       columnGap: settings.gridGapX,
       rowGap: settings.gridGapY,
       justifyContent: 'center',
+      overflow: 'hidden',
     }}>
-      {cards.map((card) => (
+      {cards.slice(0, settings.gridColumns * settings.gridRows).map((card) => (
         <CardCell key={card.id} card={card} settings={settings} />
       ))}
     </div>
@@ -206,7 +229,6 @@ function CardCell({ card, settings }) {
           <img
             src={card.imageUrl}
             alt={card.name}
-            crossOrigin={isPlaceholder ? undefined : 'anonymous'}
             style={{
               width: '100%',
               height: '100%',
@@ -225,7 +247,7 @@ function CardCell({ card, settings }) {
             fontSize: 10,
             padding: 4,
           }}>
-            <div style={{ fontSize: 10, marginBottom: 4, color: '#a09580' }}>NO IMAGE</div>
+            <div style={{ fontSize: 10, marginBottom: 4, color: '#8c95a4' }}>NO IMAGE</div>
             <div style={{ textAlign: 'center', lineHeight: 1.2, wordBreak: 'break-all' }}>
               {card.name}
             </div>

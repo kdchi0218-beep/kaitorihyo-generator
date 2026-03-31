@@ -16,12 +16,57 @@ function saveLocalTemplates(templates) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(templates))
 }
 
-function cleanSettings(settings) {
+const IMAGE_STORE_KEY = 'kaitorihyo_template_images'
+
+function getImageStore() {
+  try {
+    return JSON.parse(localStorage.getItem(IMAGE_STORE_KEY) || '{}')
+  } catch { return {} }
+}
+
+function saveImageStore(store) {
+  localStorage.setItem(IMAGE_STORE_KEY, JSON.stringify(store))
+}
+
+/**
+ * テンプレート保存時: base64画像をlocalStorageに退避し、settingsからは除去
+ * placeholderImageはパス文字列なのでそのまま保持
+ */
+function cleanSettings(settings, templateName) {
   const s = { ...settings }
-  delete s.bgImage
-  delete s.logoImage
-  delete s.placeholderImage
+  const imageKeys = ['bgImage', 'logoImage']
+  const store = getImageStore()
+  const saved = {}
+
+  for (const key of imageKeys) {
+    if (s[key] && s[key].startsWith('data:')) {
+      saved[key] = s[key]
+    }
+    delete s[key]
+  }
+
+  // placeholderImageはパス文字列ならそのまま残す、base64なら退避
+  if (s.placeholderImage && s.placeholderImage.startsWith('data:')) {
+    saved.placeholderImage = s.placeholderImage
+    delete s.placeholderImage
+  }
+
+  if (templateName && Object.keys(saved).length > 0) {
+    store[templateName] = saved
+    saveImageStore(store)
+  }
+
   return s
+}
+
+/**
+ * テンプレート読み込み時: localStorageから画像を復元
+ */
+export function restoreTemplateImages(settings, templateName) {
+  const store = getImageStore()
+  const images = store[templateName]
+  if (!images) return settings
+  return { ...settings, ...images }
 }
 
 // API対応テンプレート操作
@@ -45,7 +90,7 @@ export async function loadTemplates(email) {
 }
 
 export async function saveTemplate(name, settings, email) {
-  const cleaned = cleanSettings(settings)
+  const cleaned = cleanSettings(settings, name)
 
   if (!email) {
     // ローカルフォールバック
@@ -78,7 +123,7 @@ export async function saveTemplate(name, settings, email) {
 }
 
 export async function updateTemplate(id, name, settings, email) {
-  const cleaned = settings ? cleanSettings(settings) : null
+  const cleaned = settings ? cleanSettings(settings, name) : null
 
   if (!email || !id) {
     return await saveTemplate(name, settings, email)

@@ -29,11 +29,11 @@ export default function BackgroundSettings({ settings, update }) {
       </SettingRow>
 
       <div className="py-1">
-        <label className="text-xs text-[#7a7060] block mb-1">背景画像</label>
+        <label className="text-xs text-[#5a6577] block mb-1">背景画像</label>
         <div className="flex items-center gap-2">
           <button
             onClick={() => fileRef.current?.click()}
-            className="text-xs px-3 py-1.5 rounded bg-[#f3eee0] hover:bg-[#e8e0cc] text-[#5a5040] border border-[#d4cbb5] cursor-pointer"
+            className="text-xs px-3 py-1.5 rounded bg-[#eef1f6] hover:bg-[#dfe3ea] text-[#5a6577] border border-[#d0d5dd] cursor-pointer"
           >
             画像を選択
           </button>
@@ -57,7 +57,7 @@ export default function BackgroundSettings({ settings, update }) {
           <img
             src={settings.bgImage}
             alt="背景プレビュー"
-            className="mt-2 max-h-20 rounded border border-[#d4cbb5]"
+            className="mt-2 max-h-20 rounded border border-[#d0d5dd]"
           />
         )}
       </div>

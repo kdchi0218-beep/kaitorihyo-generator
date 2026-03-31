@@ -2,12 +2,26 @@ import { useState } from 'react'
 
 const USERS = [
   {
-    email: 'sougoukanri@card-desk.com',
+    id: 'sougoukanri',
     hash: '222817638',
+    format: 'carddesk',
   },
   {
-    email: 'tsuchiya@aclass-group.com',
+    id: 'tsuchiya',
     hash: '-1943143077',
+    format: 'carddesk',
+  },
+  {
+    id: 'tonton001',
+    hash: '1503068194',
+    format: 'tonton',
+    label: 'トントン秋葉原店',
+  },
+  {
+    id: 'tonton002',
+    hash: '1503068194',
+    format: 'tonton',
+    label: 'トントン日本橋店',
   },
 ]
 
@@ -22,7 +36,7 @@ function simpleHash(text) {
 }
 
 export default function Login({ onLogin }) {
-  const [email, setEmail] = useState('')
+  const [userId, setUserId] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,14 +47,16 @@ export default function Login({ onLogin }) {
     setLoading(true)
 
     const hash = simpleHash(password)
-    const user = USERS.find(u => u.email === email && u.hash === hash)
+    const user = USERS.find(u => u.id === userId && u.hash === hash)
 
     if (user) {
       localStorage.setItem('auth', 'true')
-      localStorage.setItem('userEmail', user.email)
-      onLogin(user.email)
+      localStorage.setItem('userEmail', user.id)
+      localStorage.setItem('userFormat', user.format)
+      localStorage.setItem('userLabel', user.label || user.id)
+      onLogin(user.id)
     } else {
-      setError('メールアドレスまたはパスワードが正しくありません')
+      setError('IDまたはパスワードが正しくありません')
     }
     setLoading(false)
   }
@@ -52,7 +68,7 @@ export default function Login({ onLogin }) {
       justifyContent: 'center',
       height: '100vh',
       width: '100vw',
-      background: '#faf8f4',
+      background: '#f5f7fa',
     }}>
       <form onSubmit={handleSubmit} style={{
         background: '#fff',
@@ -61,11 +77,14 @@ export default function Login({ onLogin }) {
         boxShadow: '0 2px 16px rgba(0,0,0,0.08)',
         width: '380px',
       }}>
+        <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+          <img src="./carddesk-logo.png" alt="CardDesk" style={{ height: '36px', margin: '0 auto' }} />
+        </div>
         <h1 style={{
-          fontSize: '20px',
+          fontSize: '18px',
           fontWeight: '700',
           marginBottom: '8px',
-          color: '#3a3530',
+          color: '#1e3a5f',
           textAlign: 'center',
         }}>
           買取表ジェネレーター
@@ -93,13 +112,14 @@ export default function Login({ onLogin }) {
         )}
 
         <label style={{ fontSize: '13px', fontWeight: '600', color: '#555' }}>
-          メールアドレス
+          ID
         </label>
         <input
-          type="email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
+          type="text"
+          value={userId}
+          onChange={e => setUserId(e.target.value)}
           required
+          autoComplete="username"
           style={{
             width: '100%',
             padding: '10px 12px',
@@ -120,6 +140,7 @@ export default function Login({ onLogin }) {
           value={password}
           onChange={e => setPassword(e.target.value)}
           required
+          autoComplete="current-password"
           style={{
             width: '100%',
             padding: '10px 12px',
@@ -138,7 +159,7 @@ export default function Login({ onLogin }) {
           style={{
             width: '100%',
             padding: '12px',
-            background: '#3a3530',
+            background: '#1e3a5f',
             color: '#fff',
             border: 'none',
             borderRadius: '8px',

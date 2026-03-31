@@ -22,6 +22,7 @@ function loadFromStorage(key, fallback) {
 function App() {
   const [authed, setAuthed] = useState(() => localStorage.getItem('auth') === 'true')
   const [userEmail, setUserEmail] = useState(() => localStorage.getItem('userEmail') || '')
+  const [userFormat, setUserFormat] = useState(() => localStorage.getItem('userFormat') || 'carddesk')
   const [cards, setCards] = useState(() => loadFromStorage(STORAGE_KEYS.cards, []))
   const [allCards, setAllCards] = useState(() => loadFromStorage(STORAGE_KEYS.allCards, []))
   const [settings, setSettings] = useState(() => loadFromStorage(STORAGE_KEYS.settings, DEFAULT_SETTINGS))
@@ -52,6 +53,7 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('auth')
     localStorage.removeItem('userEmail')
+    localStorage.removeItem('userFormat')
     localStorage.removeItem(STORAGE_KEYS.cards)
     localStorage.removeItem(STORAGE_KEYS.allCards)
     localStorage.removeItem(STORAGE_KEYS.settings)
@@ -60,7 +62,7 @@ function App() {
   }
 
   if (!authed) {
-    return <Login onLogin={(email) => { setAuthed(true); setUserEmail(email) }} />
+    return <Login onLogin={(id) => { setAuthed(true); setUserEmail(id); setUserFormat(localStorage.getItem('userFormat') || 'carddesk') }} />
   }
 
   return (
@@ -74,6 +76,7 @@ function App() {
         updateSettings={updateSettings}
         setSettings={setSettings}
         userEmail={userEmail}
+        userFormat={userFormat}
         onClearData={handleClearData}
         onLogout={handleLogout}
       />

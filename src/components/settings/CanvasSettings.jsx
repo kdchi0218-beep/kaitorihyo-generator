@@ -16,7 +16,7 @@ export default function CanvasSettings({ settings, update }) {
           <button
             key={p.label}
             onClick={() => { update('canvasWidth', p.w); update('canvasHeight', p.h) }}
-            className="text-xs px-2 py-1 rounded bg-[#f3eee0] hover:bg-[#e8e0cc] text-[#5a5040] border border-[#d4cbb5] cursor-pointer"
+            className="text-xs px-2 py-1 rounded bg-[#eef1f6] hover:bg-[#dfe3ea] text-[#5a6577] border border-[#d0d5dd] cursor-pointer"
           >
             {p.label}
           </button>

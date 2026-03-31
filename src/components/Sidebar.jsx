@@ -5,6 +5,7 @@ import CanvasSettings from './settings/CanvasSettings.jsx'
 import BackgroundSettings from './settings/BackgroundSettings.jsx'
 import HeaderSettings from './settings/HeaderSettings.jsx'
 import GridSettings from './settings/GridSettings.jsx'
+import CardFrameSettings from './settings/CardFrameSettings.jsx'
 import PsaSettings from './settings/PsaSettings.jsx'
 import TextSettings from './settings/TextSettings.jsx'
 import PriceSettings from './settings/PriceSettings.jsx'
@@ -12,25 +13,27 @@ import FooterSettings from './settings/FooterSettings.jsx'
 import CardSelector from './CardSelector.jsx'
 import ExportButtons from './ExportButtons.jsx'
 
-export default function Sidebar({ allCards, setAllCards, cards, setCards, settings, updateSettings, setSettings, userEmail, onClearData, onLogout }) {
+export default function Sidebar({ allCards, setAllCards, cards, setCards, settings, updateSettings, setSettings, userEmail, userFormat, onClearData, onLogout }) {
   const selectedCount = cards.length
 
   return (
-    <div className="w-[440px] min-w-[440px] h-screen overflow-y-auto bg-white border-r border-[#e0d9c8] flex flex-col">
-      <div className="px-5 py-3 border-b border-[#e0d9c8] bg-[#faf6ed] sticky top-0 z-10">
+    <div className="w-[440px] min-w-[440px] h-screen overflow-y-auto bg-white border-r border-[#e0e4ea] flex flex-col">
+      <div className="px-5 py-3 border-b border-[#e0e4ea] bg-white sticky top-0 z-10">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-bold text-[#3a3530] flex items-center gap-2">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d4a517" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-            買取表ジェネレーター
-          </h1>
+          <div className="flex items-center gap-2">
+            <img src="./carddesk-icon.png" alt="CardDesk" style={{ height: '28px' }} />
+            <h1 className="text-lg font-bold text-[#1e3a5f]">
+              買取表ジェネレーター
+            </h1>
+          </div>
           <button
             onClick={onLogout}
-            className="text-[10px] text-[#a09580] hover:text-red-500 cursor-pointer"
+            className="text-[10px] text-[#8c95a4] hover:text-red-500 cursor-pointer"
           >
             ログアウト
           </button>
         </div>
-        <div className="text-[10px] text-[#a09580] mt-1">{userEmail}</div>
+        <div className="text-[10px] text-[#8c95a4] mt-1">{localStorage.getItem('userLabel') || userEmail}</div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
@@ -39,6 +42,8 @@ export default function Sidebar({ allCards, setAllCards, cards, setCards, settin
             allCards={allCards}
             setAllCards={setAllCards}
             setCards={setCards}
+            userFormat={userFormat}
+            updateSettings={updateSettings}
           />
           {allCards.length > 0 && (
             <button
@@ -67,7 +72,11 @@ export default function Sidebar({ allCards, setAllCards, cards, setCards, settin
         </AccordionSection>
 
         <AccordionSection title="カードグリッド設定">
-          <GridSettings settings={settings} update={updateSettings} />
+          <GridSettings settings={settings} update={updateSettings} userFormat={userFormat} />
+        </AccordionSection>
+
+        <AccordionSection title="カード枠設定">
+          <CardFrameSettings settings={settings} update={updateSettings} />
         </AccordionSection>
 
         <AccordionSection title="PSAロゴ設定">
@@ -89,6 +98,7 @@ export default function Sidebar({ allCards, setAllCards, cards, setCards, settin
         <AccordionSection title={`カード選択（${selectedCount}枚）`} defaultOpen>
           <CardSelector
             allCards={allCards}
+            setAllCards={setAllCards}
             cards={cards}
             setCards={setCards}
           />

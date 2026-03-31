@@ -70,6 +70,13 @@ export const DEFAULT_SETTINGS = {
   fillEmptySlots: true,
   placeholderImage: './card-back.jpg',
 
+  // Update date
+  showUpdateDate: false,
+  updateDateFontSize: 12,
+  updateDateColor: '#888888',
+  updateDateAlign: 'right', // left, center, right
+  updateDatePosition: 'bottom', // top, bottom
+
   // Footer
   footerText: 'カードの傷およびケース傷、カード在庫状況等による増減がございますので予めご了承ください',
   footerFontSize: 10,

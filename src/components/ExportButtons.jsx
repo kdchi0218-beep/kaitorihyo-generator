@@ -33,11 +33,11 @@ export default function ExportButtons({ cards, settings }) {
   }
 
   return (
-    <div className="px-4 py-3 border-t border-[#e0d9c8] bg-white flex gap-2 items-center">
+    <div className="px-4 py-3 border-t border-[#e0e4ea] bg-white flex gap-2 items-center">
       <select
         value={format}
         onChange={e => setFormat(e.target.value)}
-        className="text-xs px-2 py-2.5 rounded-lg border border-[#d4cbb5] bg-[#faf6ed]"
+        className="text-xs px-2 py-2.5 rounded-lg border border-[#d0d5dd] bg-[#f8f9fb]"
       >
         <option value="png">PNG</option>
         <option value="jpeg">JPEG</option>
@@ -45,7 +45,7 @@ export default function ExportButtons({ cards, settings }) {
       <button
         onClick={handleExport}
         disabled={cards.length === 0 || exporting}
-        className="flex-1 py-2.5 rounded-lg bg-[#d4a517] hover:bg-[#c09615] disabled:opacity-40 text-white text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors"
+        className="flex-1 py-2.5 rounded-lg bg-[#1e3a5f] hover:bg-[#162d4a] disabled:opacity-40 text-white text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors"
       >
         {exporting ? (
           <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
@@ -54,7 +54,7 @@ export default function ExportButtons({ cards, settings }) {
         )}
         {pageCount > 1 ? `${format.toUpperCase()}出力（${pageCount}枚ZIP）` : `${format.toUpperCase()}出力`}
       </button>
-      <div className="text-xs text-[#a09580] whitespace-nowrap">
+      <div className="text-xs text-[#8c95a4] whitespace-nowrap">
         {cards.length}枚
         {pageCount > 1 && ` / ${pageCount}ページ`}
       </div>

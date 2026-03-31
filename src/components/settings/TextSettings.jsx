@@ -10,11 +10,11 @@ export default function TextSettings({ settings, update }) {
             <input
               type="range"
               min={6}
-              max={20}
+              max={30}
               value={settings.cardNameFontSize}
               onChange={e => update('cardNameFontSize', Number(e.target.value))}
             />
-            <span className="text-xs text-[#7a7060] w-6">{settings.cardNameFontSize}</span>
+            <span className="text-xs text-[#5a6577] w-6">{settings.cardNameFontSize}</span>
           </SettingRow>
           <SettingRow label="文字色">
             <input type="color" value={settings.cardNameColor} onChange={e => update('cardNameColor', e.target.value)} />

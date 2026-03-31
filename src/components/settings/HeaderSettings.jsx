@@ -30,11 +30,11 @@ export default function HeaderSettings({ settings, update }) {
             <input
               type="range"
               min={20}
-              max={80}
+              max={120}
               value={settings.headerFontSize}
               onChange={e => update('headerFontSize', Number(e.target.value))}
             />
-            <span className="text-xs text-[#7a7060] w-8">{settings.headerFontSize}</span>
+            <span className="text-xs text-[#5a6577] w-8">{settings.headerFontSize}</span>
           </SettingRow>
           <SettingRow label="文字色">
             <input type="color" value={settings.headerColor} onChange={e => update('headerColor', e.target.value)} />
@@ -48,12 +48,12 @@ export default function HeaderSettings({ settings, update }) {
             </select>
           </SettingRow>
 
-          <div className="pt-2 border-t border-[#e0d9c8]">
-            <label className="text-xs text-[#7a7060] block mb-1">ロゴ画像</label>
+          <div className="pt-2 border-t border-[#e0e4ea]">
+            <label className="text-xs text-[#5a6577] block mb-1">ロゴ画像</label>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => logoRef.current?.click()}
-                className="text-xs px-3 py-1.5 rounded bg-[#f3eee0] hover:bg-[#e8e0cc] text-[#5a5040] border border-[#d4cbb5] cursor-pointer"
+                className="text-xs px-3 py-1.5 rounded bg-[#eef1f6] hover:bg-[#dfe3ea] text-[#5a6577] border border-[#d0d5dd] cursor-pointer"
               >
                 ロゴを選択
               </button>
@@ -78,7 +78,7 @@ export default function HeaderSettings({ settings, update }) {
                     value={settings.logoSize}
                     onChange={e => update('logoSize', Number(e.target.value))}
                   />
-                  <span className="text-xs text-[#7a7060] w-8">{settings.logoSize}</span>
+                  <span className="text-xs text-[#5a6577] w-8">{settings.logoSize}</span>
                 </SettingRow>
                 <SettingRow label="位置">
                   <select value={settings.logoPosition} onChange={e => update('logoPosition', e.target.value)}>

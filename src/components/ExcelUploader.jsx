@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { parseExcel } from '../lib/excelParser.js'
 
-export default function ExcelUploader({ allCards, setAllCards, setCards }) {
+export default function ExcelUploader({ allCards, setAllCards, setCards, userFormat, updateSettings }) {
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -14,19 +14,28 @@ export default function ExcelUploader({ allCards, setAllCards, setCards }) {
     setStatus(null)
 
     try {
-      const result = await parseExcel(file)
+      const result = await parseExcel(file, userFormat || 'carddesk')
       setAllCards(result.cards)
       setFileName(file.name)
       const withPrice = result.cards.filter(c => c.price > 0)
       setCards(withPrice)
 
-      const masterInfo = result.hasMaster
-        ? `マスター: ${result.masterCount}件（画像: ${result.imageCount}件）`
-        : 'ポケモンシートなし（画像なし）'
+      // ゲーム種別でプレースホルダーを自動切り替え
+      const placeholder = result.gameType === 'onepiece'
+        ? './card-back-onepiece.jpg'
+        : './card-back.jpg'
+      updateSettings('placeholderImage', placeholder)
+
+      const formatLabel = result.format === 'tonton' ? 'トントン' : 'CardDesk'
+      const masterInfo = result.format === 'tonton'
+        ? `${result.cards.length}件（画像: ${result.matchedImages}件）`
+        : result.hasMaster
+          ? `マスター: ${result.masterCount}件（画像: ${result.imageCount}件）`
+          : 'ポケモンシートなし（画像なし）'
 
       setStatus({
         type: 'success',
-        message: `読み込み完了 — ${masterInfo} / 買取表: ${result.cards.length}件（価格あり: ${withPrice.length}件, 画像マッチ: ${result.matchedImages}件）`,
+        message: `[${formatLabel}] 読み込み完了 — ${masterInfo} / 買取表: ${result.cards.length}件（価格あり: ${withPrice.length}件, 画像マッチ: ${result.matchedImages}件）`,
       })
     } catch (err) {
       setStatus({ type: 'error', message: err.message })
@@ -77,10 +86,10 @@ export default function ExcelUploader({ allCards, setAllCards, setCards }) {
       <div
         className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${
           dragging
-            ? 'border-[#d4a517] bg-[#d4a517]/10'
+            ? 'border-[#1e3a5f] bg-[#1e3a5f]/10'
             : allCards.length > 0
-              ? 'border-[#d4cbb5] hover:border-[#d4a517] hover:bg-[#faf6ed]'
-              : 'border-[#d4cbb5] hover:border-[#d4a517] hover:bg-[#faf6ed]'
+              ? 'border-[#d0d5dd] hover:border-[#1e3a5f] hover:bg-[#f8f9fb]'
+              : 'border-[#d0d5dd] hover:border-[#1e3a5f] hover:bg-[#f8f9fb]'
         }`}
         onClick={() => fileRef.current?.click()}
         onDragOver={handleDragOver}
@@ -88,12 +97,12 @@ export default function ExcelUploader({ allCards, setAllCards, setCards }) {
         onDrop={handleDrop}
       >
         <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="hidden" />
-        <svg className="mx-auto mb-2" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={dragging ? '#d4a517' : '#a09580'} strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        <p className="text-sm text-[#7a7060]">
+        <svg className="mx-auto mb-2" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={dragging ? '#1e3a5f' : '#8c95a4'} strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <p className="text-sm text-[#5a6577]">
           {loading ? '読み込み中...' : dragging ? 'ここにドロップ' : allCards.length > 0 ? 'クリックまたはドロップで再読み込み' : 'クリックまたはドラッグ&ドロップ'}
         </p>
-        <p className="text-[10px] text-[#a09580] mt-1">
-          「ポケモン」シート（画像）+ 「買取表価格サマリ」シート（価格）を自動検出
+        <p className="text-[10px] text-[#8c95a4] mt-1">
+          {userFormat === 'tonton' ? 'トントンフォーマット' : '.xlsx ファイルを読み込み'}
         </p>
       </div>
 
@@ -106,12 +115,12 @@ export default function ExcelUploader({ allCards, setAllCards, setCards }) {
       )}
 
       {allCards.length > 0 && (
-        <div className="text-xs text-[#7a7060] space-y-1">
+        <div className="text-xs text-[#5a6577] space-y-1">
           <p>カテゴリ:</p>
           {Object.entries(
             allCards.reduce((acc, c) => { acc[c.tag] = (acc[c.tag] || 0) + 1; return acc }, {})
           ).map(([tag, count]) => (
-            <span key={tag} className="inline-block bg-[#f3eee0] text-[#5a5040] px-2 py-0.5 rounded mr-1 mb-1">{tag}: {count}</span>
+            <span key={tag} className="inline-block bg-[#eef1f6] text-[#5a6577] px-2 py-0.5 rounded mr-1 mb-1">{tag}: {count}</span>
           ))}
         </div>
       )}

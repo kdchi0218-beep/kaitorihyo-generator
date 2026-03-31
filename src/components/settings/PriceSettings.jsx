@@ -4,8 +4,8 @@ export default function PriceSettings({ settings, update }) {
   return (
     <div className="space-y-2">
       <SettingRow label="文字サイズ">
-        <input type="range" min={8} max={30} value={settings.priceFontSize} onChange={e => update('priceFontSize', Number(e.target.value))} />
-        <span className="text-xs text-[#7a7060] w-6">{settings.priceFontSize}</span>
+        <input type="range" min={8} max={48} value={settings.priceFontSize} onChange={e => update('priceFontSize', Number(e.target.value))} />
+        <span className="text-xs text-[#5a6577] w-6">{settings.priceFontSize}</span>
       </SettingRow>
       <SettingRow label="文字色">
         <input type="color" value={settings.priceColor} onChange={e => update('priceColor', e.target.value)} />
@@ -20,7 +20,7 @@ export default function PriceSettings({ settings, update }) {
       </SettingRow>
 
       {/* 外縁（テキストストローク） */}
-      <div className="pt-2 border-t border-[#e0d9c8]">
+      <div className="pt-2 border-t border-[#e0e4ea]">
         <SettingToggle label="文字の外縁" checked={settings.priceStroke} onChange={v => update('priceStroke', v)} />
         {settings.priceStroke && (
           <>
@@ -30,14 +30,14 @@ export default function PriceSettings({ settings, update }) {
             </SettingRow>
             <SettingRow label="外縁幅">
               <input type="range" min={1} max={6} value={settings.priceStrokeWidth} onChange={e => update('priceStrokeWidth', Number(e.target.value))} />
-              <span className="text-xs text-[#7a7060] w-4">{settings.priceStrokeWidth}</span>
+              <span className="text-xs text-[#5a6577] w-4">{settings.priceStrokeWidth}</span>
             </SettingRow>
           </>
         )}
       </div>
 
       {/* 背景色 */}
-      <div className="pt-2 border-t border-[#e0d9c8]">
+      <div className="pt-2 border-t border-[#e0e4ea]">
         <SettingToggle label="価格の背景色" checked={settings.priceBgEnabled} onChange={v => update('priceBgEnabled', v)} />
         {settings.priceBgEnabled && (
           <>
@@ -47,31 +47,31 @@ export default function PriceSettings({ settings, update }) {
               <input type="text" value={settings.priceBgColor} onChange={e => update('priceBgColor', e.target.value)} className="w-20" />
             </SettingRow>
             <SettingRow label="角丸">
-              <input type="range" min={0} max={10} value={settings.priceBgRadius} onChange={e => update('priceBgRadius', Number(e.target.value))} />
-              <span className="text-xs text-[#7a7060] w-4">{settings.priceBgRadius}</span>
+              <input type="range" min={0} max={20} value={settings.priceBgRadius} onChange={e => update('priceBgRadius', Number(e.target.value))} />
+              <span className="text-xs text-[#5a6577] w-4">{settings.priceBgRadius}</span>
             </SettingRow>
             <SettingRow label="横余白">
-              <input type="range" min={0} max={20} value={settings.priceBgPaddingX} onChange={e => update('priceBgPaddingX', Number(e.target.value))} />
-              <span className="text-xs text-[#7a7060] w-4">{settings.priceBgPaddingX}</span>
+              <input type="range" min={0} max={40} value={settings.priceBgPaddingX} onChange={e => update('priceBgPaddingX', Number(e.target.value))} />
+              <span className="text-xs text-[#5a6577] w-4">{settings.priceBgPaddingX}</span>
             </SettingRow>
             <SettingRow label="縦余白">
-              <input type="range" min={0} max={10} value={settings.priceBgPaddingY} onChange={e => update('priceBgPaddingY', Number(e.target.value))} />
-              <span className="text-xs text-[#7a7060] w-4">{settings.priceBgPaddingY}</span>
+              <input type="range" min={0} max={20} value={settings.priceBgPaddingY} onChange={e => update('priceBgPaddingY', Number(e.target.value))} />
+              <span className="text-xs text-[#5a6577] w-4">{settings.priceBgPaddingY}</span>
             </SettingRow>
           </>
         )}
       </div>
 
       {/* カードとの距離 */}
-      <div className="pt-2 border-t border-[#e0d9c8]">
+      <div className="pt-2 border-t border-[#e0e4ea]">
         <SettingRow label="カードとの距離">
-          <input type="range" min={0} max={20} value={settings.priceMarginTop} onChange={e => update('priceMarginTop', Number(e.target.value))} />
-          <span className="text-xs text-[#7a7060] w-4">{settings.priceMarginTop}</span>
+          <input type="range" min={0} max={40} value={settings.priceMarginTop} onChange={e => update('priceMarginTop', Number(e.target.value))} />
+          <span className="text-xs text-[#5a6577] w-4">{settings.priceMarginTop}</span>
         </SettingRow>
       </div>
 
       {/* フォーマット */}
-      <div className="pt-2 border-t border-[#e0d9c8]">
+      <div className="pt-2 border-t border-[#e0e4ea]">
         <SettingRow label="接頭辞">
           <input type="text" value={settings.pricePrefix} onChange={e => update('pricePrefix', e.target.value)} placeholder="例: ¥" className="w-20" />
         </SettingRow>
