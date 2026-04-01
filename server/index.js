@@ -156,6 +156,62 @@ app.get('/api/cardrush/prices', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// BOX商品検索（Puppeteerで ECサイト検索 → 商品ID・画像URL取得）
+// GET /api/cardrush/search-box?genre=pokemon&name=MEGAドリームex
+app.get('/api/cardrush/search-box', async (req, res) => {
+  try {
+    const genre = req.query.genre || 'pokemon'
+    const name = req.query.name
+    if (!name) return res.status(400).json({ error: 'name required' })
+
+    const ecDomain = genre === 'pokemon' ? 'www.cardrush-pokemon.jp' : 'www.cardrush-op.jp'
+    const searchUrl = 'https://' + ecDomain + '/product-list?keyword=' + encodeURIComponent(name + ' box')
+
+    const b = await getBrowser()
+    const page = await b.newPage()
+    try {
+      await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
+      await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 })
+
+      // Cloudflareチャレンジ待機
+      const title = await page.title()
+      if (title.includes('Just a moment') || title.includes('Checking')) {
+        await new Promise(r => setTimeout(r, 8000))
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {})
+      }
+
+      // 検索結果から商品リンクと画像を抽出
+      const result = await page.evaluate(() => {
+        const items = []
+        // 商品リンクを探す
+        const links = document.querySelectorAll('a[href*="/product/"]')
+        for (const link of links) {
+          const href = link.href || ''
+          const m = href.match(/\/product\/(\d+)/)
+          if (!m) continue
+          const productId = m[1]
+          // 商品名
+          const nameEl = link.querySelector('.item-title, .product-name, p') || link
+          const productName = (nameEl.textContent || '').trim()
+          // 商品画像
+          const img = link.querySelector('img')
+          const imageUrl = img ? img.src : ''
+          if (productName && (productName.includes('BOX') || productName.includes('未開封') || productName.includes('ボックス'))) {
+            items.push({ productId, productName, imageUrl, productUrl: href })
+          }
+        }
+        return items
+      })
+
+      res.json({ results: result, searchUrl })
+    } finally {
+      await page.close().catch(() => {})
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 // 商品ページ取得（Puppeteerで販売価格スクレイプ）
 // GET /api/cardrush/product?genre=pokemon&id=72874
 // GET /api/cardrush/product?genre=onepiece&id=3382
