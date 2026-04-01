@@ -188,35 +188,31 @@ app.get('/api/cardrush/product', async (req, res) => {
 
     const mediaGenre = genre === 'pokemon' ? 'pokemon' : 'onepiece'
     const ecDomain = genre === 'pokemon' ? 'www.cardrush-pokemon.jp' : 'www.cardrush-op.jp'
+    const ecDataPath = genre === 'pokemon' ? 'cardrushpokemon' : 'cardrush-op'
     const productUrl = 'https://' + ecDomain + '/product/' + id
-    // ポケモン: files.cardrush.media (content-type: image/webp でブラウザ表示OK)
-    // ワンピース: 商品ページからjpeg画像を取得 (content-type: binary/octet-streamで.webpはダウンロードされるため)
-    let imageUrl = genre === 'pokemon' ? 'https://files.cardrush.media/pokemon/ocha_products/' + id + '.webp' : ''
+    // まずCDN URLを試す（通常カードはここにある）
+    let imageUrl = 'https://files.cardrush.media/' + mediaGenre + '/ocha_products/' + id + '.webp'
 
     let sellingPrice = null
     let productName = ''
     let page = null
+    let htmlImageUrl = ''
 
-    // ワンピースはCloudflareなし → 直接HTMLから画像URL取得
+    // ワンピース: Cloudflareなし → 直接fetchで商品ページHTMLから画像URL取得
     if (genre !== 'pokemon') {
       try {
         const htmlRes = await fetch(productUrl, { headers: CR_HEADERS })
         if (htmlRes.ok) {
           const html = await htmlRes.text()
-          // 商品画像（/data/cardrush-op/product/xxx.jpeg）を探す
-          const imgMatch = html.match(/(https?:\/\/www\.cardrush-op\.jp\/data\/cardrush-op\/product\/[^"'\s]+\.(?:jpeg|jpg|png))/i)
+          const imgPattern = new RegExp('(https?:\\/\\/' + ecDomain.replace(/\./g, '\\.') + '\\/data\\/' + ecDataPath + '\\/product\\/[^"\'\\s]+\\.(?:jpeg|jpg|png|webp))', 'i')
+          const imgMatch = html.match(imgPattern)
           if (imgMatch) imageUrl = imgMatch[1]
-          // フォールバック: alt="画像1:" のimg
-          if (!imageUrl) {
+          if (!imgMatch) {
             const altMatch = html.match(/<img\s+src="([^"]+)"\s+alt="画像1:/)
             if (altMatch) imageUrl = altMatch[1]
           }
-          // フォールバック: CDN webp
-          if (!imageUrl) imageUrl = 'https://files.cardrush.media/onepiece/ocha_products/' + id + '.webp'
         }
-      } catch (_) {
-        imageUrl = 'https://files.cardrush.media/onepiece/ocha_products/' + id + '.webp'
-      }
+      } catch (_) {}
     }
 
     try {
@@ -232,25 +228,41 @@ app.get('/api/cardrush/product', async (req, res) => {
         await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {})
       }
 
-      // ページ内から販売価格と商品名を抽出
+      // ページ内から販売価格・商品名・商品画像URLを抽出
       const data = await page.evaluate(() => {
         let price = null
         let name = ''
+        let pageImageUrl = ''
 
         // 商品名: titleタグ or h1
         const titleEl = document.querySelector('title')
         if (titleEl) name = titleEl.textContent.replace(/ - カードラッシュ.*$/, '').trim()
+
+        // 商品画像: /data/cardrushpokemon/product/ or /data/cardrush-op/product/ のsrc
+        const imgs = document.querySelectorAll('img')
+        for (const img of imgs) {
+          const src = img.src || ''
+          if (src.match(/\/data\/cardrush[^/]*\/product\//)) {
+            pageImageUrl = src
+            break
+          }
+        }
+        // フォールバック: alt="画像1:" のimg
+        if (!pageImageUrl) {
+          const altImg = document.querySelector('img[alt^="画像1:"]')
+          if (altImg && altImg.src) pageImageUrl = altImg.src
+        }
 
         // 販売価格を探す: 複数パターン
         const body = document.body.innerText || ''
 
         // パターン1: "販売価格" の近くの金額
         const m1 = body.match(/販売価格[^0-9]*?([0-9,]+)\s*円/)
-        if (m1) { price = parseInt(m1[1].replace(/,/g, ''), 10); return { price, name } }
+        if (m1) { price = parseInt(m1[1].replace(/,/g, ''), 10); return { price, name, pageImageUrl } }
 
         // パターン2: "税込" の近くの金額
         const m2 = body.match(/税込[^0-9]*?([0-9,]+)\s*円/)
-        if (m2) { price = parseInt(m2[1].replace(/,/g, ''), 10); return { price, name } }
+        if (m2) { price = parseInt(m2[1].replace(/,/g, ''), 10); return { price, name, pageImageUrl } }
 
         // パターン3: ¥XX,XXX パターン（最初に見つかった大きい金額）
         const priceMatches = body.match(/¥\s*([0-9,]+)/g) || []
@@ -259,23 +271,32 @@ app.get('/api/cardrush/product', async (req, res) => {
           if (val > 0) { price = val; break }
         }
 
-        return { price, name }
+        return { price, name, pageImageUrl }
       })
 
       sellingPrice = data.price
       productName = data.name
+      if (data.pageImageUrl) htmlImageUrl = data.pageImageUrl
     } catch (e) {
       console.error('Puppeteer error [' + id + ']:', e.message)
     } finally {
       if (page) await page.close().catch(() => {})
     }
 
-    // 画像存在チェック
+    // 画像存在チェック（CDN → HTMLフォールバック）
     let imageExists = false
     try {
       const imgCheck = await fetch(imageUrl, { method: 'HEAD', headers: CR_HEADERS })
       imageExists = imgCheck.ok
     } catch (_) {}
+    // ポケモン: CDN画像がなければHTML画像にフォールバック（BOX・特殊カード対応）
+    if (!imageExists && genre === 'pokemon' && htmlImageUrl) {
+      imageUrl = htmlImageUrl
+      try {
+        const fallbackCheck = await fetch(imageUrl, { method: 'HEAD', headers: CR_HEADERS })
+        imageExists = fallbackCheck.ok
+      } catch (_) {}
+    }
 
     const result = {
       id: Number(id),
