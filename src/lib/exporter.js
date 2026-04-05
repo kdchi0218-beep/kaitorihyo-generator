@@ -1,4 +1,5 @@
 import { toPng, toJpeg } from 'html-to-image'
+import JSZip from 'jszip'
 
 const API_BASE = location.hostname === 'localhost'
   ? 'http://localhost:3001'
@@ -36,8 +37,6 @@ export async function exportAllPages(pageElements, format = 'png', baseName = 'è
     a.href = images[0].dataUrl
     a.click()
   } else {
-    const mod = await import('jszip')
-    const JSZip = typeof mod.default === 'function' ? mod.default : mod
     const zip = new JSZip()
     for (const img of images) {
       zip.file(img.name, img.dataUrl.split(',')[1], { base64: true })
