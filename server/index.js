@@ -145,7 +145,9 @@ app.get('/api/cardrush/prices', async (req, res) => {
     const genre = req.query.genre || 'pokemon'
     const name = req.query.name
     if (!name) return res.status(400).json({ error: 'name required' })
-    const pageUrl = 'https://cardrush.media/' + genre + '/buying_prices?name=' + encodeURIComponent(name) + '&limit=50&page=1&sort[key]=amount&sort[order]=desc'
+    let pageUrl = 'https://cardrush.media/' + genre + '/buying_prices?name=' + encodeURIComponent(name) + '&limit=50&page=1&sort[key]=amount&sort[order]=desc'
+    if (req.query.model_number) pageUrl += '&model_number=' + encodeURIComponent(req.query.model_number)
+    if (req.query.rarity) pageUrl += '&rarity=' + encodeURIComponent(req.query.rarity)
     const response = await fetch(pageUrl, { headers: CR_HEADERS })
     if (!response.ok) return res.status(response.status).json({ error: 'CardRush ' + response.status })
     const html = await response.text()
