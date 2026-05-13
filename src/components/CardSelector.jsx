@@ -5,6 +5,7 @@ export default function CardSelector({ allCards, cards, setCards, setAllCards })
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [priceFilter, setPriceFilter] = useState('withPrice')
   const [sortBy, setSortBy] = useState('priceDesc')
+  const [sortBy2, setSortBy2] = useState('none')
   const [detailCard, setDetailCard] = useState(null)
   const lastClickedIndex = useRef(null)
 
@@ -26,18 +27,38 @@ export default function CardSelector({ allCards, cards, setCards, setAllCards })
   const rarities = useMemo(() => [...new Set(allCards.map(c => c.rarity).filter(Boolean))].sort(), [allCards])
 
   // ソートはselectedのみ（cards）に適用して表示順を変える
-  const applySort = (list, sort) => {
+  const applySort = (list, sort, sort2) => {
     const typeOrder = { 'PSA10': 0, '素体': 1 }
-    switch (sort) {
-      case 'priceDesc': return [...list].sort((a, b) => b.price - a.price)
-      case 'priceAsc': return [...list].sort((a, b) => a.price - b.price)
-      case 'nameAsc': return [...list].sort((a, b) => a.name.localeCompare(b.name))
-      case 'typeAsc': return [...list].sort((a, b) => (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99) || b.price - a.price)
-      case 'rarityAsc': return [...list].sort((a, b) => (a.rarity || '').localeCompare(b.rarity || '') || b.price - a.price)
-      case 'boxAsc': return [...list].sort((a, b) => (a.boxName || '').localeCompare(b.boxName || '') || b.price - a.price)
-      case 'tagAsc': return [...list].sort((a, b) => (a.tag || '').localeCompare(b.tag || '') || b.price - a.price)
-      default: return list
+
+    const compareByKey = (key, a, b) => {
+      switch (key) {
+        case 'priceDesc': return (b.price ?? 0) - (a.price ?? 0)
+        case 'priceAsc': return (a.price ?? 0) - (b.price ?? 0)
+        case 'nameAsc': return String(a.name ?? '').localeCompare(String(b.name ?? ''))
+        case 'typeAsc': return (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99)
+        case 'tagAsc': return String(a.tag ?? '').localeCompare(String(b.tag ?? ''))
+        case 'boxAsc': return String(a.boxName ?? '').localeCompare(String(b.boxName ?? ''))
+        case 'rarityAsc': return String(a.rarity ?? '').localeCompare(String(b.rarity ?? ''))
+        default: return 0
+      }
     }
+
+    return [...list].sort((a, b) => {
+      const primary = compareByKey(sort, a, b)
+      if (primary !== 0) return primary
+
+      // 第2ソートが明示指定されていればそれを使う
+      if (sort2 && sort2 !== 'none') {
+        return compareByKey(sort2, a, b)
+      }
+
+      // 既存の暗黙タイブレーク維持（後方互換）:
+      //   typeAsc/rarityAsc/boxAsc/tagAsc は同キー内で価格降順
+      if (sort === 'typeAsc' || sort === 'rarityAsc' || sort === 'boxAsc' || sort === 'tagAsc') {
+        return (b.price ?? 0) - (a.price ?? 0)
+      }
+      return 0
+    })
   }
 
   // 未選択カードをフィルタ・ソートして表示
@@ -51,8 +72,8 @@ export default function CardSelector({ allCards, cards, setCards, setAllCards })
       const q = search.toLowerCase()
       result = result.filter(c => c.name.toLowerCase().includes(q) || c.listNo.toLowerCase().includes(q))
     }
-    return applySort(result, sortBy)
-  }, [allCards, selectedIds, categoryFilter, priceFilter, search, sortBy])
+    return applySort(result, sortBy, sortBy2)
+  }, [allCards, selectedIds, categoryFilter, priceFilter, search, sortBy, sortBy2])
 
   const toggleCard = useCallback((card, index, shiftKey) => {
     if (selectedIds.has(card.id)) {
@@ -71,7 +92,12 @@ export default function CardSelector({ allCards, cards, setCards, setAllCards })
   // 並び替え
   const handleSort = (sort) => {
     setSortBy(sort)
-    setCards(applySort(cards, sort))
+    setCards(applySort(cards, sort, sortBy2))
+  }
+
+  const handleSort2 = (sort2) => {
+    setSortBy2(sort2)
+    setCards(applySort(cards, sortBy, sort2))
   }
 
   const moveCard = (fromIndex, toIndex) => {
@@ -170,6 +196,16 @@ export default function CardSelector({ allCards, cards, setCards, setAllCards })
           <option value="tagAsc">カテゴリ順</option>
           {boxNames.length > 0 && <option value="boxAsc">ボックス順</option>}
           {rarities.length > 0 && <option value="rarityAsc">レアリティ順</option>}
+        </select>
+        <select value={sortBy2} onChange={e => handleSort2(e.target.value)} className="text-xs">
+          <option value="none">第2ソートなし</option>
+          <option value="priceDesc">→ 価格 高い順</option>
+          <option value="priceAsc">→ 価格 安い順</option>
+          <option value="nameAsc">→ 名前順</option>
+          <option value="typeAsc">→ 種別順</option>
+          <option value="tagAsc">→ カテゴリ順</option>
+          {boxNames.length > 0 && <option value="boxAsc">→ ボックス順</option>}
+          {rarities.length > 0 && <option value="rarityAsc">→ レアリティ順</option>}
         </select>
       </div>
 
