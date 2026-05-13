@@ -188,7 +188,9 @@ export default function CardSelector({ allCards, cards, setCards, setAllCards })
       </div>
       <div className="flex gap-2">
         <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="カード名検索..." className="flex-1 text-xs" />
-        <select value={sortBy} onChange={e => handleSort(e.target.value)} className="text-xs">
+      </div>
+      <div className="flex gap-2">
+        <select value={sortBy} onChange={e => handleSort(e.target.value)} className="flex-1 text-xs">
           <option value="priceDesc">価格 高い順</option>
           <option value="priceAsc">価格 安い順</option>
           <option value="nameAsc">名前順</option>
@@ -197,7 +199,7 @@ export default function CardSelector({ allCards, cards, setCards, setAllCards })
           {boxNames.length > 0 && <option value="boxAsc">ボックス順</option>}
           {rarities.length > 0 && <option value="rarityAsc">レアリティ順</option>}
         </select>
-        <select value={sortBy2} onChange={e => handleSort2(e.target.value)} className="text-xs">
+        <select value={sortBy2} onChange={e => handleSort2(e.target.value)} className="flex-1 text-xs">
           <option value="none">第2ソートなし</option>
           <option value="priceDesc">→ 価格 高い順</option>
           <option value="priceAsc">→ 価格 安い順</option>
