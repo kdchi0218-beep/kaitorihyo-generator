@@ -78,7 +78,7 @@ function parseTontonFormat(workbook) {
     if (imageUrl) matchedImages++
 
     cards.push({
-      id: cardNo || `card_${i}`,
+      id: `${cardNo || 'card'}_${i}`,
       name: cardName,
       listNo: cardNo,
       price,
@@ -177,7 +177,7 @@ function parseCardDeskFormat(workbook) {
     if (imageUrl) matchedImages++
 
     cards.push({
-      id: row[2] || `card_${i}`,
+      id: `${row[2] || 'card'}_${i}`,
       name: cardName,
       listNo,
       price,
