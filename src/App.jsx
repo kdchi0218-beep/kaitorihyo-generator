@@ -8,7 +8,25 @@ const STORAGE_KEYS = {
   cards: 'kaitori_cards',
   allCards: 'kaitori_allCards',
   settings: 'kaitori_settings',
+  schemaVersion: 'kaitori_schemaVersion',
 }
+
+// IDが「カード番号」だけだと重複しkey衝突するため、行番号付きIDに移行
+const CURRENT_SCHEMA_VERSION = 2
+
+function migrateStorage() {
+  try {
+    const v = Number(localStorage.getItem(STORAGE_KEYS.schemaVersion) || '1')
+    if (v < CURRENT_SCHEMA_VERSION) {
+      localStorage.removeItem(STORAGE_KEYS.cards)
+      localStorage.removeItem(STORAGE_KEYS.allCards)
+      localStorage.setItem(STORAGE_KEYS.schemaVersion, String(CURRENT_SCHEMA_VERSION))
+    }
+  } catch {
+    // ignore
+  }
+}
+migrateStorage()
 
 function loadFromStorage(key, fallback) {
   try {
