@@ -13,9 +13,15 @@ function getLocalTemplates() {
 }
 
 function saveLocalTemplates(templates) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(templates))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(templates))
+  } catch (e) {
+    console.warn('saveLocalTemplates failed:', e?.name || e)
+  }
 }
 
+// 後方互換: 既存ユーザーが localStorage に持っている画像を、サーバー保存に
+// 移行する間だけ復元用として読む。新規保存ではここに書かない（DBに入れる）。
 const IMAGE_STORE_KEY = 'kaitorihyo_template_images'
 
 function getImageStore() {
@@ -24,47 +30,21 @@ function getImageStore() {
   } catch { return {} }
 }
 
-function saveImageStore(store) {
-  localStorage.setItem(IMAGE_STORE_KEY, JSON.stringify(store))
+const IMAGE_KEYS = ['bgImage', 'logoImage', 'placeholderImage']
+
+function hasInlineImage(settings) {
+  return IMAGE_KEYS.some(k => typeof settings?.[k] === 'string' && settings[k].startsWith('data:'))
 }
 
 /**
- * テンプレート保存時: base64画像をlocalStorageに退避し、settingsからは除去
- * placeholderImageはパス文字列なのでそのまま保持
- */
-function cleanSettings(settings, templateName) {
-  const s = { ...settings }
-  const imageKeys = ['bgImage', 'logoImage']
-  const store = getImageStore()
-  const saved = {}
-
-  for (const key of imageKeys) {
-    if (s[key] && s[key].startsWith('data:')) {
-      saved[key] = s[key]
-    }
-    delete s[key]
-  }
-
-  // placeholderImageはパス文字列ならそのまま残す、base64なら退避
-  if (s.placeholderImage && s.placeholderImage.startsWith('data:')) {
-    saved.placeholderImage = s.placeholderImage
-    delete s.placeholderImage
-  }
-
-  if (templateName && Object.keys(saved).length > 0) {
-    store[templateName] = saved
-    saveImageStore(store)
-  }
-
-  return s
-}
-
-/**
- * テンプレート読み込み時: localStorageから画像を復元
+ * テンプレ読み込み時の後方互換: サーバー側 settings に画像が無く、
+ * 旧localStorage退避データに該当テンプレ名のエントリがあればマージして返す。
+ * これにより既存ユーザーは1回上書き保存するだけでDBに自動移行される。
  */
 export function restoreTemplateImages(settings, templateName) {
+  if (hasInlineImage(settings)) return settings
   const store = getImageStore()
-  const images = store[templateName]
+  const images = store?.[templateName]
   if (!images) return settings
   return { ...settings, ...images }
 }
@@ -90,13 +70,11 @@ export async function loadTemplates(email) {
 }
 
 export async function saveTemplate(name, settings, email) {
-  const cleaned = cleanSettings(settings, name)
-
   if (!email) {
-    // ローカルフォールバック
+    // ローカルフォールバック（未ログイン）
     const templates = getLocalTemplates()
     const existing = templates.findIndex(t => t.name === name)
-    const entry = { name, settings: cleaned, updatedAt: new Date().toISOString() }
+    const entry = { name, settings, updatedAt: new Date().toISOString() }
     if (existing >= 0) templates[existing] = entry
     else templates.push(entry)
     saveLocalTemplates(templates)
@@ -107,14 +85,14 @@ export async function saveTemplate(name, settings, email) {
     const res = await fetch(`${API_BASE}/templates`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name, settings: cleaned }),
+      body: JSON.stringify({ email, name, settings }),
     })
     if (!res.ok) throw new Error('API error')
     return await loadTemplates(email)
   } catch {
     const templates = getLocalTemplates()
     const existing = templates.findIndex(t => t.name === name)
-    const entry = { name, settings: cleaned, updatedAt: new Date().toISOString() }
+    const entry = { name, settings, updatedAt: new Date().toISOString() }
     if (existing >= 0) templates[existing] = entry
     else templates.push(entry)
     saveLocalTemplates(templates)
@@ -123,8 +101,6 @@ export async function saveTemplate(name, settings, email) {
 }
 
 export async function updateTemplate(id, name, settings, email) {
-  const cleaned = settings ? cleanSettings(settings, name) : null
-
   if (!email || !id) {
     return await saveTemplate(name, settings, email)
   }
@@ -133,7 +109,7 @@ export async function updateTemplate(id, name, settings, email) {
     const res = await fetch(`${API_BASE}/templates/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name, settings: cleaned }),
+      body: JSON.stringify({ email, name, settings }),
     })
     if (!res.ok) throw new Error('API error')
     return await loadTemplates(email)

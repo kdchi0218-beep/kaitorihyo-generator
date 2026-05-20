@@ -11,7 +11,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
 }))
 
-app.use(express.json({ limit: '10mb' }))
+app.use(express.json({ limit: '50mb' }))
 
 // DB接続: 環境変数から取得
 const pool = new pg.Pool({

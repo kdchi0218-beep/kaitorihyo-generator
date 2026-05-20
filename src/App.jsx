@@ -37,6 +37,32 @@ function loadFromStorage(key, fallback) {
   }
 }
 
+// localStorageは5MB前後で頭打ち。base64画像入りsettingsをそのまま入れると
+// QuotaExceededErrorになる場合があるので、失敗時は画像を剥がして再試行する。
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value)
+    return true
+  } catch (e) {
+    if (e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014)) {
+      return false
+    }
+    console.warn('localStorage.setItem failed:', e?.name || e)
+    return false
+  }
+}
+
+function persistSettings(settings) {
+  const json = JSON.stringify(settings)
+  if (safeSetItem(STORAGE_KEYS.settings, json)) return
+  // 縮退保存: 画像系を剥がして再試行（サーバー側に画像は別途保存される想定）
+  const slim = { ...settings, bgImage: null, logoImage: null }
+  if (typeof slim.placeholderImage === 'string' && slim.placeholderImage.startsWith('data:')) {
+    delete slim.placeholderImage
+  }
+  safeSetItem(STORAGE_KEYS.settings, JSON.stringify(slim))
+}
+
 function App() {
   const [authed, setAuthed] = useState(() => localStorage.getItem('auth') === 'true')
   const [userEmail, setUserEmail] = useState(() => localStorage.getItem('userEmail') || '')
@@ -46,15 +72,15 @@ function App() {
   const [settings, setSettings] = useState(() => loadFromStorage(STORAGE_KEYS.settings, DEFAULT_SETTINGS))
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.cards, JSON.stringify(cards))
+    safeSetItem(STORAGE_KEYS.cards, JSON.stringify(cards))
   }, [cards])
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.allCards, JSON.stringify(allCards))
+    safeSetItem(STORAGE_KEYS.allCards, JSON.stringify(allCards))
   }, [allCards])
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings))
+    persistSettings(settings)
   }, [settings])
 
   const updateSettings = useCallback((key, value) => {
