@@ -1,9 +1,9 @@
 import { toCanvas } from 'html-to-image'
 import JSZip from 'jszip'
 
-const IMAGE_CONVERSION_CONCURRENCY = 6
-const TRANSPARENT_IMAGE_PLACEHOLDER =
-  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
+const IMAGE_CONVERSION_CONCURRENCY = 2
+const IMAGE_PROXY_ATTEMPTS = 3
+const IMAGE_RETRY_BASE_DELAY_MS = 250
 
 export function createExporter({
   prepareImages = inlineImagesForExport,
@@ -27,6 +27,15 @@ export function createExporter({
         prepared = await prepareImages(pages[index], index)
         if (import.meta.env?.DEV) {
           console.log(`ページ${index + 1}: ${prepared.success}/${prepared.total}枚変換成功`)
+        }
+        const missingImages = Number.isFinite(prepared?.total) && Number.isFinite(prepared?.success)
+          ? Math.max(0, prepared.total - prepared.success)
+          : 0
+        if (missingImages > 0) {
+          throw new Error(
+            `カード画像${missingImages}枚を取得できませんでした。` +
+            '通信状態を確認して、もう一度出力してください',
+          )
         }
         imageBlob = await renderPage(pages[index], normalizedFormat, index)
         if (!imageBlob || typeof imageBlob.size !== 'number' || imageBlob.size === 0) {
@@ -73,8 +82,6 @@ async function renderPageToBlob(element, format) {
       pixelRatio: 2,
       skipAutoScale: true,
       backgroundColor: format === 'jpeg' ? '#ffffff' : undefined,
-      // 取得不能な画像が1枚あっても、ページ全体の出力は止めない。
-      imagePlaceholder: TRANSPARENT_IMAGE_PLACEHOLDER,
       // 「前回価格」マーカーなど、画面だけで使う要素は出力しない。
       filter: node => node.tagName !== 'NOSCRIPT' &&
         !(node.classList && node.classList.contains('export-exclude')),
@@ -116,31 +123,53 @@ function triggerBlobDownload(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 5000)
 }
 
-async function inlineImagesForExport(container) {
+export async function inlineImagesForExport(container, {
+  loadImage = fetchImageAsDataUrl,
+  concurrency = IMAGE_CONVERSION_CONCURRENCY,
+} = {}) {
   const images = Array.from(container.querySelectorAll('img'))
   const targets = images.filter(image => {
     const source = image.currentSrc || image.src
     return source && !source.startsWith('data:') && !source.startsWith('blob:')
   })
-  const originals = []
+  const originals = targets.map(image => ({
+    image,
+    src: image.getAttribute('src'),
+    srcset: image.getAttribute('srcset'),
+  }))
+  const dataUrlBySource = new Map()
+  const failures = []
   let success = 0
 
-  for (let start = 0; start < targets.length; start += IMAGE_CONVERSION_CONCURRENCY) {
-    const batch = targets.slice(start, start + IMAGE_CONVERSION_CONCURRENCY)
+  const loadOnce = source => {
+    if (!dataUrlBySource.has(source)) {
+      dataUrlBySource.set(source, Promise.resolve().then(() => loadImage(source)))
+    }
+    return dataUrlBySource.get(source)
+  }
+
+  const batchSize = Math.max(1, Number(concurrency) || 1)
+  for (let start = 0; start < targets.length; start += batchSize) {
+    const batch = targets.slice(start, start + batchSize)
     await Promise.all(batch.map(async image => {
       const source = image.currentSrc || image.src
       try {
-        const dataUrl = await fetchImageAsDataUrl(source)
-        originals.push({
-          image,
-          src: image.getAttribute('src'),
-          srcset: image.getAttribute('srcset'),
-        })
+        const dataUrl = await loadOnce(source)
         image.removeAttribute('srcset')
         image.src = dataUrl
-        await image.decode?.().catch(() => {})
+        if (typeof image.decode === 'function') await image.decode()
         success++
       } catch (error) {
+        const original = originals.find(item => item.image === image)
+        if (original) {
+          restoreAttribute(image, 'src', original.src)
+          restoreAttribute(image, 'srcset', original.srcset)
+        }
+        failures.push({
+          source,
+          alt: image.alt || '',
+          message: error?.message || String(error),
+        })
         console.warn('画像変換失敗:', error?.message || String(error), source.substring(0, 80))
       }
     }))
@@ -149,6 +178,7 @@ async function inlineImagesForExport(container) {
   return {
     success,
     total: targets.length,
+    failures,
     restore() {
       for (const original of originals) {
         restoreAttribute(original.image, 'src', original.src)
@@ -159,18 +189,52 @@ async function inlineImagesForExport(container) {
   }
 }
 
-async function fetchImageAsDataUrl(source) {
+export async function fetchImageAsDataUrl(source, {
+  fetchImpl = fetch,
+  responseToDataUrl = imageResponseToDataUrl,
+  waitForRetry = waitForImageRetry,
+  proxyAttempts = IMAGE_PROXY_ATTEMPTS,
+} = {}) {
   try {
-    const response = await fetch(source, { mode: 'cors', cache: 'force-cache' })
+    const response = await fetchImpl(source, { mode: 'cors', cache: 'force-cache' })
     if (!response.ok) throw new Error(`${response.status}`)
-    return await imageResponseToDataUrl(response)
+    return await responseToDataUrl(response)
   } catch {
     // CORS非対応の許可済みドメインは、画像プロキシを使う。
   }
 
-  const response = await fetch(`/api/image-proxy?url=${encodeURIComponent(source)}`)
-  if (!response.ok) throw new Error(`画像プロキシ ${response.status}`)
-  return imageResponseToDataUrl(response)
+  let lastError
+  let attemptsMade = 0
+  const attempts = Math.max(1, Number(proxyAttempts) || 1)
+  const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(source)}`
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    attemptsMade = attempt
+    try {
+      const response = await fetchImpl(proxyUrl, {
+        cache: attempt === 1 ? 'default' : 'reload',
+      })
+      if (!response.ok) {
+        const error = new Error(`画像プロキシ ${response.status}`)
+        error.status = response.status
+        throw error
+      }
+      return await responseToDataUrl(response)
+    } catch (error) {
+      lastError = error
+      const retryable = !Number.isFinite(error?.status) || isRetryableProxyStatus(error.status)
+      if (attempt >= attempts || !retryable) break
+      await waitForRetry(IMAGE_RETRY_BASE_DELAY_MS * attempt)
+    }
+  }
+
+  const detail = lastError?.message || String(lastError || '取得失敗')
+  throw new Error(`画像プロキシを${attemptsMade}回試しましたが取得できません (${detail})`, {
+    cause: lastError,
+  })
+}
+
+function isRetryableProxyStatus(status) {
+  return status === 408 || status === 425 || status === 429 || status >= 500
 }
 
 async function imageResponseToDataUrl(response) {
@@ -203,4 +267,8 @@ function waitForBrowser() {
       setTimeout(resolve, 0)
     }
   })
+}
+
+function waitForImageRetry(delay) {
+  return new Promise(resolve => setTimeout(resolve, delay))
 }

@@ -10,6 +10,10 @@ const ALLOWED_IMAGE_TYPES = new Set([
   'image/png',
   'image/webp',
 ])
+const OCTET_STREAM_TYPES = new Set([
+  'application/octet-stream',
+  'binary/octet-stream',
+])
 
 class ImageProxyError extends Error {
   constructor(message, statusCode) {
@@ -60,6 +64,17 @@ async function readBodyWithLimit(response, maxBytes) {
   return Buffer.concat(chunks, total)
 }
 
+function sniffImageContentType(body) {
+  if (body.length >= 16 &&
+    body.toString('ascii', 0, 4) === 'RIFF' &&
+    body.readUInt32LE(4) + 8 === body.length &&
+    body.toString('ascii', 8, 12) === 'WEBP' &&
+    ['VP8 ', 'VP8L', 'VP8X'].includes(body.toString('ascii', 12, 16))) {
+    return 'image/webp'
+  }
+  return ''
+}
+
 export async function fetchImageAsset(rawUrl, {
   fetchImpl = fetch,
   maxBytes = MAX_IMAGE_BYTES,
@@ -77,16 +92,24 @@ export async function fetchImageAsset(rawUrl, {
   }
   if (!upstream.ok) throw new ImageProxyError(`upstream ${upstream.status}`, upstream.status)
 
-  const contentType = (upstream.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase()
-  if (!ALLOWED_IMAGE_TYPES.has(contentType)) throw new ImageProxyError('content type not allowed', 415)
+  let contentType = (upstream.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase()
+  const canSniffCardrushWebp = OCTET_STREAM_TYPES.has(contentType) &&
+    parsed.hostname === 'files.cardrush.media'
+  if (!ALLOWED_IMAGE_TYPES.has(contentType) && !canSniffCardrushWebp) {
+    throw new ImageProxyError('content type not allowed', 415)
+  }
 
   const declaredLength = Number(upstream.headers.get('content-length'))
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
     throw new ImageProxyError('image too large', 413)
   }
 
+  const body = await readBodyWithLimit(upstream, maxBytes)
+  if (canSniffCardrushWebp) contentType = sniffImageContentType(body)
+  if (!ALLOWED_IMAGE_TYPES.has(contentType)) throw new ImageProxyError('content type not allowed', 415)
+
   return {
-    body: await readBodyWithLimit(upstream, maxBytes),
+    body,
     contentType,
   }
 }

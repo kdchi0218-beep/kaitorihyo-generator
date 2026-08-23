@@ -79,11 +79,69 @@ test('image proxy: リダイレクトと画像以外を中継しない', async (
     }),
     /redirect/,
   )
+  let bodyRead = false
   await assert.rejects(
     () => fetchImageAsset('https://example.supabase.co/a.jpg', {
-      fetchImpl: async () => new Response('<html></html>', {
+      fetchImpl: async () => ({
         status: 200,
-        headers: { 'Content-Type': 'text/html' },
+        ok: true,
+        headers: new Headers({ 'Content-Type': 'text/html' }),
+        get body() {
+          bodyRead = true
+          throw new Error('画像以外のbodyを読んではいけない')
+        },
+      }),
+    }),
+    /content type/,
+  )
+  assert.equal(bodyRead, false)
+})
+
+test('image proxy: Cardrushがapplication/octet-streamで返すWebPは実データを検査して中継する', async () => {
+  const webp = Buffer.concat([
+    Buffer.from('RIFF', 'ascii'),
+    Buffer.from([12, 0, 0, 0]),
+    Buffer.from('WEBP', 'ascii'),
+    Buffer.from('VP8 ', 'ascii'),
+    Buffer.alloc(4),
+  ])
+
+  const asset = await fetchImageAsset(
+    'https://files.cardrush.media/pokemon/ocha_products/67343.webp',
+    {
+      fetchImpl: async () => new Response(webp, {
+        status: 200,
+        headers: { 'Content-Type': 'binary/octet-stream' },
+      }),
+    },
+  )
+
+  assert.equal(asset.contentType, 'image/webp')
+  assert.deepEqual(asset.body, webp)
+})
+
+test('image proxy: octet-streamで偽装した画像以外は中継しない', async () => {
+  await assert.rejects(
+    () => fetchImageAsset('https://files.cardrush.media/fake.webp', {
+      fetchImpl: async () => new Response('<html>not an image</html>', {
+        status: 200,
+        headers: { 'Content-Type': 'application/octet-stream' },
+      }),
+    }),
+    /content type/,
+  )
+
+  const brokenRiff = Buffer.concat([
+    Buffer.from('RIFF', 'ascii'),
+    Buffer.alloc(4),
+    Buffer.from('WEBPVP8 ', 'ascii'),
+    Buffer.alloc(4),
+  ])
+  await assert.rejects(
+    () => fetchImageAsset('https://files.cardrush.media/broken.webp', {
+      fetchImpl: async () => new Response(brokenRiff, {
+        status: 200,
+        headers: { 'Content-Type': 'binary/octet-stream' },
       }),
     }),
     /content type/,
