@@ -4,7 +4,6 @@ import GenreTabs from './GenreTabs.jsx'
 import StoreSwitcher from './StoreSwitcher.jsx'
 import ExcelUploader from './ExcelUploader.jsx'
 import GenreExcelUploader from './GenreExcelUploader.jsx'
-import SheetSourcePanel from './SheetSourcePanel.jsx'
 import TemplateManager from './TemplateManager.jsx'
 import CanvasSettings from './settings/CanvasSettings.jsx'
 import BackgroundSettings from './settings/BackgroundSettings.jsx'
@@ -26,7 +25,7 @@ import { GENRE_BY_KEY } from '../lib/genres.js'
 export default function Sidebar({
   width = 440,
   stores, allStores = [], isAdmin, activeStoreId, setActiveStoreId, onOpenAdmin,
-  activeGenre, setActiveGenre, genreMeta, sheetUrl, setSheetUrl, loadGenreCards,
+  activeGenre, setActiveGenre, genreMeta, loadGenreCards,
   allCards, setAllCards, cards, setCards, settings, updateSettings, setSettings,
   userEmail, onClearData, onLogout,
 }) {
@@ -88,20 +87,6 @@ export default function Sidebar({
             </div>
           </details>
 
-          <details className="mt-2">
-            <summary className="text-[11px] text-[#5a6577] cursor-pointer hover:text-[#1e3a5f]">
-              スプシURLから取得（{genreLabel}・任意）
-            </summary>
-            <div className="mt-2">
-              <SheetSourcePanel
-                activeGenre={activeGenre}
-                sheetUrl={sheetUrl}
-                setSheetUrl={setSheetUrl}
-                loadGenreCards={loadGenreCards}
-                allCards={allCards}
-              />
-            </div>
-          </details>
           {allCards.length > 0 && (
             <button
               onClick={() => { if (confirm(`${genreLabel}の読み込みデータをクリアしますか？`)) onClearData() }}

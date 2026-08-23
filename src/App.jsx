@@ -270,10 +270,6 @@ function App() {
     }))
   }, [pricing])
 
-  const setSheetUrl = useCallback((genreKey, url) => {
-    setGenreData(prev => ({ ...prev, [genreKey]: { ...prev[genreKey], sheetUrl: url } }))
-  }, [])
-
   const handleClearActive = () => {
     setGenreData(prev => ({ ...prev, [activeGenre]: { ...prev[activeGenre], allCards: [], selected: [] } }))
   }
@@ -333,8 +329,6 @@ function App() {
         activeGenre={activeGenre}
         setActiveGenre={setActiveGenre}
         genreMeta={genreMeta}
-        sheetUrl={active.sheetUrl || ''}
-        setSheetUrl={setSheetUrl}
         loadGenreCards={loadGenreCards}
         allCards={active.allCards}
         setAllCards={setActiveAllCards}

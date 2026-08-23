@@ -41,6 +41,19 @@ test('入力切替: 利用者向けの取込表示をパワンへ統一する', 
   assert.doesNotMatch(source, /Vault(?:新形式|旧形式|形式不明|: 1ファイル)/)
 })
 
+test('データ取得: スプシURL取得を画面と利用者向け案内から除外する', async () => {
+  const [sidebar, help, usage] = await Promise.all([
+    readFile(new URL('../src/components/Sidebar.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/lib/helpContent.js', import.meta.url), 'utf8'),
+    readFile(new URL('../docs/USAGE.md', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(sidebar, /GenreExcelUploader/)
+  assert.doesNotMatch(sidebar, /SheetSourcePanel|スプシURLから取得/)
+  assert.doesNotMatch(help, /スプシURLから取得/)
+  assert.doesNotMatch(usage, /スプシ|スプレッドシート/)
+})
+
 test('とんとん総合版: 保存値が不正な場合はとんとん形式へ戻す', () => {
   assert.equal(normalizeInputSource(INPUT_SOURCES.VAULT), INPUT_SOURCES.VAULT)
   assert.equal(normalizeInputSource('tampered'), INPUT_SOURCES.TONTON)
