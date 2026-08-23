@@ -55,7 +55,7 @@ export default function ExcelUploader({ loadGenreCards, onGenreDetected }) {
 
       const fmtLabel = inputSource === INPUT_SOURCES.TONTON
         ? 'とんとん形式'
-        : format === 'new' ? 'Vault新形式(商品ID付き)' : format === 'old' ? 'Vault旧形式' : 'Vault形式不明'
+        : format === 'new' ? 'パワン新形式(商品ID付き)' : format === 'old' ? 'パワン旧形式' : 'パワン形式不明'
       setStatus({ type: 'success', message: `［${fmtLabel}］読込完了 ▶ ${lines.join(' / ')}` })
     } catch (e) {
       setStatus({ type: 'error', message: e.message })
@@ -106,7 +106,7 @@ export default function ExcelUploader({ loadGenreCards, onGenreDetected }) {
         </p>
         <p className="text-[10px] text-[#8c95a4] mt-1">
           {inputSource === INPUT_SOURCES.VAULT
-            ? 'Vault: 1ファイルで5ジャンル一括読み込み'
+            ? 'パワン: 1ファイルで5ジャンル一括読み込み'
             : 'とんとん: ポケモン／ワンピースの単一シート'}
         </p>
       </div>

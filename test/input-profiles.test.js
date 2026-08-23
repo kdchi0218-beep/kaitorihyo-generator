@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import * as XLSX from 'xlsx'
 
 import {
@@ -30,6 +31,14 @@ const writeFile = (workbook) => {
 test('とんとん総合版: とんとん形式を第一選択肢にする', () => {
   assert.equal(INPUT_SOURCE_OPTIONS[0].value, INPUT_SOURCES.TONTON)
   assert.equal(INPUT_SOURCE_OPTIONS[1].value, INPUT_SOURCES.VAULT)
+  assert.equal(INPUT_SOURCE_OPTIONS[1].label, 'パワン形式')
+})
+
+test('入力切替: 利用者向けの取込表示をパワンへ統一する', async () => {
+  const source = await readFile(new URL('../src/components/ExcelUploader.jsx', import.meta.url), 'utf8')
+  assert.match(source, /パワン新形式/)
+  assert.match(source, /パワン: 1ファイルで5ジャンル一括読み込み/)
+  assert.doesNotMatch(source, /Vault(?:新形式|旧形式|形式不明|: 1ファイル)/)
 })
 
 test('とんとん総合版: 保存値が不正な場合はとんとん形式へ戻す', () => {
@@ -111,7 +120,7 @@ test('入力切替: とんとん形式のExcelは該当ジャンルだけを返�
   assert.equal(result.pokemon.inputSource, INPUT_SOURCES.TONTON)
 })
 
-test('入力切替: Vault形式は既存の5ジャンル一括取込を維持する', async () => {
+test('入力切替: パワン形式は既存の5ジャンル一括取込を維持する', async () => {
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
     ['ガチャ選択肢名称', '種別', 'list_no', '画像', '仕入れ依頼数', '納品希望価格'],

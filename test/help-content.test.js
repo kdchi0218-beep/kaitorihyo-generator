@@ -10,7 +10,7 @@ test('使い方: 初めての人向けの最短手順がある', () => {
     'login', 'input', 'template', 'select', 'export',
   ])
   assert.match(HELP_QUICK_STEPS[0].body, /初回ログインしたブラウザ/)
-  assert.match(HELP_QUICK_STEPS[1].body, /とんとん形式|Vault形式/)
+  assert.match(HELP_QUICK_STEPS[1].body, /とんとん形式|パワン形式/)
   assert.match(HELP_QUICK_STEPS[2].body, /テンプレート|価格ルール/)
   assert.match(HELP_QUICK_STEPS[4].body, /PNG出力|CSV出力/)
 })
@@ -42,7 +42,7 @@ test('使い方: 誤操作を防ぐ重要な案内文を含む', () => {
   for (const phrase of [
     'Excelをクリック / ドラッグ&ドロップ',
     'とんとん形式',
-    'Vault形式',
+    'パワン形式',
     '端末ロック解除',
     '登録済みアカウント',
     '別の管理者',
@@ -64,6 +64,14 @@ test('使い方: 画面内ヘルプから詳細手順書を開ける', async () 
   const source = await readFile(new URL('../src/components/HelpGuide.jsx', import.meta.url), 'utf8')
   assert.match(source, /docs\/USAGE\.md\?url/)
   assert.match(source, /詳細手順書を別タブで開く/)
+})
+
+test('使い方: 利用者向け手順書もパワン形式へ統一する', async () => {
+  const usage = await readFile(new URL('../docs/USAGE.md', import.meta.url), 'utf8')
+  const help = HELP_GUIDE.flatMap(section => section.items).join('\n')
+  assert.match(usage, /パワン形式/)
+  assert.doesNotMatch(usage, /Vault形式/)
+  assert.doesNotMatch(help, /Vault形式/)
 })
 
 test('定番リスト: 画面内補足も実際の破壊的ボタン名で案内する', async () => {

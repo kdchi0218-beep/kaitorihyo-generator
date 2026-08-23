@@ -14,7 +14,7 @@ export const INPUT_SOURCE_OPTIONS = Object.freeze([
   },
   {
     value: INPUT_SOURCES.VAULT,
-    label: 'Vault形式',
+    label: 'パワン形式',
     description: '1ファイルから5ジャンルを一括取込',
   },
 ])
