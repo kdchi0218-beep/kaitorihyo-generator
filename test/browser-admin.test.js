@@ -6,7 +6,7 @@ import {
   mergeBrowserUsers,
   normalizeBrowserResetRequest,
 } from '../api/admin/browser-users.js'
-import { createBrowserAdminApi } from '../src/lib/browserAdmin.js'
+import { createBrowserAdminApi, usersForStore } from '../src/lib/browserAdmin.js'
 
 test('browser admin: 解除対象UUIDと理由を検証する', () => {
   assert.deepEqual(normalizeBrowserResetRequest({
@@ -37,14 +37,25 @@ test('browser admin: Authユーザーへ店舗名と固定状態を安全に結�
 
   assert.deepEqual(rows, [
     {
-      id: 'u1', email: 'admin@example.com', isAdmin: true, stores: [],
+      id: 'u1', email: 'admin@example.com', isAdmin: true, stores: [], storeIds: [],
       browser: { bound: false, boundAt: null, lastSeenAt: null },
     },
     {
-      id: 'u2', email: 'staff@example.com', isAdmin: false, stores: ['名古屋店'],
+      id: 'u2', email: 'staff@example.com', isAdmin: false, stores: ['名古屋店'], storeIds: ['s1'],
       browser: { bound: true, boundAt: '2026-08-23T00:00:00Z', lastSeenAt: '2026-08-23T01:00:00Z' },
     },
   ])
+})
+
+test('browser admin: 店舗カードにはその店舗の一般アカウントだけを表示する', () => {
+  const users = [
+    { id: 'admin', isAdmin: true, storeIds: [] },
+    { id: 'staff-a', isAdmin: false, storeIds: ['store-a'] },
+    { id: 'staff-both', isAdmin: false, storeIds: ['store-a', 'store-b'] },
+    { id: 'staff-b', isAdmin: false, storeIds: ['store-b'] },
+  ]
+
+  assert.deepEqual(usersForStore(users, 'store-a').map(user => user.id), ['staff-a', 'staff-both'])
 })
 
 test('browser admin client: Cookie認証で一覧取得と理由付き解除を行う', async () => {
@@ -110,8 +121,12 @@ test('browser admin API: 解除を1回のPATCHで行い、DBトリガーへ監�
 
   assert.equal(response.statusCode, 200)
   assert.deepEqual(response.body, { ok: true })
+  assert.equal(response.headers['Cache-Control'], 'private, no-store')
   assert.equal(calls.length, 2)
-  const revokeBody = JSON.parse(calls.at(-1).init.body)
+  const revokeRequest = calls.at(-1).init
+  assert.equal(revokeRequest.headers['Content-Type'], 'application/json')
+  assert.equal(revokeRequest.headers.Prefer, 'return=representation')
+  const revokeBody = JSON.parse(revokeRequest.body)
   assert.equal(revokeBody.revoked_by, actorUserId)
   assert.equal(revokeBody.revocation_reason, 'PC交換')
 })

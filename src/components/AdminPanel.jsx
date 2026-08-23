@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createStore, deleteStore, createUserInStore } from '../lib/storeSync.js'
-import { browserAdminApi } from '../lib/browserAdmin.js'
+import { browserAdminApi, usersForStore } from '../lib/browserAdmin.js'
 import HelpGuide from './HelpGuide.jsx'
 
 function genPassword() {
@@ -12,6 +12,41 @@ function genPassword() {
   let p = ''
   for (let i = 0; i < 16; i++) p += pool[arr[i] % pool.length]
   return p
+}
+
+function formatDate(value) {
+  return value
+    ? new Intl.DateTimeFormat('ja-JP', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
+    : '—'
+}
+
+function BrowserUserRow({ user, currentEmail, busy, onReset }) {
+  const isCurrent = user.email === currentEmail
+  return (
+    <div className="py-2.5 flex flex-wrap items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="text-xs font-semibold text-[#1e3a5f] truncate">
+          {user.email}
+          {user.isAdmin && <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">管理者</span>}
+          {isCurrent && <span className="ml-2 text-[9px] text-[#8c95a4]">現在のアカウント</span>}
+        </div>
+        <div className="text-[10px] text-[#8c95a4] mt-1">
+          {user.browser.bound
+            ? `登録 ${formatDate(user.browser.boundAt)}・最終利用 ${formatDate(user.browser.lastSeenAt)}`
+            : '最初にログインしたブラウザへ固定されます'}
+        </div>
+      </div>
+      <span className={`text-[10px] font-semibold ${user.browser.bound ? 'text-green-700' : 'text-amber-600'}`}>
+        {user.browser.bound ? '🔒 このブラウザに固定中' : '○ 未ログイン'}
+      </span>
+      <button
+        onClick={() => onReset(user)}
+        disabled={busy || !user.browser.bound || isCurrent}
+        title={isCurrent ? '別の管理者から解除してください' : ''}
+        className="text-[11px] px-3 py-1.5 rounded border border-amber-200 text-amber-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+      >端末ロック解除</button>
+    </div>
+  )
 }
 
 export default function AdminPanel({ stores, onRefresh, onClose, canClose, userEmail, onLogout }) {
@@ -83,15 +118,13 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
     finally { setBusy(false) }
   }
 
-  const formatDate = value => value
-    ? new Intl.DateTimeFormat('ja-JP', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
-    : '—'
+  const adminUsers = browserUsers.filter(user => user.isAdmin)
 
   return (
     <div style={{ minHeight: '100vh', width: '100vw', background: '#eef1f6', overflow: 'auto' }}>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 16px' }}>
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold text-[#1e3a5f]">買取表 店舗・ユーザー管理</h1>
+          <h1 className="text-xl font-bold text-[#1e3a5f]">とんとん 店舗・ユーザー管理</h1>
           <div className="flex items-center gap-3">
             <span className="text-[11px] text-[#8c95a4]">{userEmail}</span>
             <HelpGuide />
@@ -131,6 +164,7 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
           </p>
         ) : stores.map(s => {
           const form = memberForms[s.id] || {}
+          const storeUsers = usersForStore(browserUsers, s.id)
           return (
             <div key={s.id} className="bg-white rounded-xl border border-[#e0e4ea] p-4 mb-3">
               <div className="flex items-center justify-between mb-3">
@@ -138,6 +172,30 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
                 <button onClick={() => handleDeleteStore(s)}
                   className="text-[11px] text-red-500 hover:underline cursor-pointer">店舗を削除</button>
               </div>
+
+              <div className="rounded-lg border border-[#edf0f4] bg-[#fafbfc] px-3 mb-4">
+                <div className="flex items-center justify-between pt-3 pb-1">
+                  <div className="text-[11px] font-semibold text-[#5a6577]">
+                    登録済みアカウント（{storeUsers.length}件）
+                  </div>
+                  <button onClick={loadBrowserUsers} disabled={browserLoading || busy}
+                    className="text-[10px] text-[#6b7482] hover:underline cursor-pointer disabled:opacity-50">
+                    再読込
+                  </button>
+                </div>
+                {browserLoading ? (
+                  <p className="text-[11px] text-[#8c95a4] py-3">アカウントを読み込み中...</p>
+                ) : storeUsers.length === 0 ? (
+                  <p className="text-[11px] text-[#8c95a4] py-3">まだアカウントはありません。</p>
+                ) : (
+                  <div className="divide-y divide-[#edf0f4]">
+                    {storeUsers.map(user => (
+                      <BrowserUserRow key={user.id} user={user} currentEmail={userEmail} busy={busy} onReset={handleResetBrowser} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="text-[11px] text-[#5a6577] mb-2">この店舗のログインユーザーを発行（メール＋パスワード）</div>
               <div className="flex flex-wrap gap-2 items-center">
                 <input
@@ -165,8 +223,8 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
         <div className="bg-white rounded-xl border border-[#e0e4ea] p-4 mt-5 mb-4">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h2 className="text-sm font-bold text-[#1e3a5f]">ブラウザ固定の管理</h2>
-              <p className="text-[10px] text-[#8c95a4] mt-1">初回ログインしたブラウザだけ利用できます。PC交換時はここで登録を解除してください。</p>
+              <h2 className="text-sm font-bold text-[#1e3a5f]">管理者ブラウザ固定</h2>
+              <p className="text-[10px] text-[#8c95a4] mt-1">管理者のPC交換時は、別の管理者から端末ロックを解除してください。</p>
             </div>
             <button onClick={loadBrowserUsers} disabled={browserLoading || busy}
               className="text-[11px] px-3 py-1.5 rounded border border-[#d0d5dd] text-[#5a6577] cursor-pointer disabled:opacity-60">
@@ -175,37 +233,13 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
           </div>
 
           {browserLoading ? (
-            <p className="text-xs text-[#8c95a4] py-4 text-center">ユーザーを読み込み中...</p>
-          ) : browserUsers.length === 0 ? (
-            <p className="text-xs text-[#8c95a4] py-4 text-center">ユーザーがまだありません。</p>
+            <p className="text-xs text-[#8c95a4] py-4 text-center">管理者を読み込み中...</p>
+          ) : adminUsers.length === 0 ? (
+            <p className="text-xs text-[#8c95a4] py-4 text-center">管理者が見つかりません。</p>
           ) : (
             <div className="divide-y divide-[#edf0f4]">
-              {browserUsers.map(user => (
-                <div key={user.id} className="py-3 flex flex-wrap items-center gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold text-[#1e3a5f] truncate">
-                      {user.email}
-                      {user.isAdmin && <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">管理者</span>}
-                      {user.email === userEmail && <span className="ml-2 text-[9px] text-[#8c95a4]">現在のアカウント</span>}
-                    </div>
-                    <div className="text-[10px] text-[#8c95a4] mt-1">
-                      {user.stores.length ? user.stores.join('・') : (user.isAdmin ? '全店舗' : '店舗未割当')}
-                      {' / '}
-                      {user.browser.bound
-                        ? `固定済み（登録 ${formatDate(user.browser.boundAt)}・最終利用 ${formatDate(user.browser.lastSeenAt)}）`
-                        : '未登録（次の初回ログインで固定）'}
-                    </div>
-                  </div>
-                  <span className={`text-[10px] font-semibold ${user.browser.bound ? 'text-green-700' : 'text-amber-600'}`}>
-                    {user.browser.bound ? '● 固定済み' : '○ 未登録'}
-                  </span>
-                  <button
-                    onClick={() => handleResetBrowser(user)}
-                    disabled={busy || !user.browser.bound || user.email === userEmail}
-                    title={user.email === userEmail ? '別の管理者から解除してください' : ''}
-                    className="text-[11px] px-3 py-1.5 rounded border border-red-200 text-red-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  >ブラウザ登録を解除</button>
-                </div>
+              {adminUsers.map(user => (
+                <BrowserUserRow key={user.id} user={user} currentEmail={userEmail} busy={busy} onReset={handleResetBrowser} />
               ))}
             </div>
           )}

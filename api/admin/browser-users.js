@@ -14,12 +14,16 @@ export function mergeBrowserUsers({ users = [], admins = [], members = [], store
   const adminIds = new Set(admins.map(row => row.user_id))
   const storeNames = new Map(stores.map(store => [store.id, store.name]))
   const memberships = new Map()
+  const membershipStoreIds = new Map()
   for (const member of members) {
     const name = storeNames.get(member.store_id)
     if (!name) continue
     const values = memberships.get(member.user_id) || []
     if (!values.includes(name)) values.push(name)
     memberships.set(member.user_id, values)
+    const ids = membershipStoreIds.get(member.user_id) || []
+    if (!ids.includes(member.store_id)) ids.push(member.store_id)
+    membershipStoreIds.set(member.user_id, ids)
   }
   const activeBindings = new Map(bindings.map(binding => [binding.user_id, binding]))
 
@@ -31,6 +35,7 @@ export function mergeBrowserUsers({ users = [], admins = [], members = [], store
         email: String(user.email || ''),
         isAdmin: adminIds.has(user.id),
         stores: memberships.get(user.id) || [],
+        storeIds: membershipStoreIds.get(user.id) || [],
         browser: {
           bound: !!binding,
           boundAt: binding?.bound_at || null,
@@ -66,6 +71,7 @@ async function listAuthUsers(serviceRequest) {
 
 export function createBrowserUsersHandler({ authenticateBoundRequest, requireAdmin, serviceRequest }) {
   return async function browserUsersHandler(req, res) {
+    res.setHeader('Cache-Control', 'private, no-store')
     if (req.method !== 'GET' && req.method !== 'POST') {
       res.setHeader('Allow', 'GET, POST')
       res.status(405).json({ error: 'GET or POST only' })
@@ -114,7 +120,7 @@ export function createBrowserUsersHandler({ authenticateBoundRequest, requireAdm
         `/rest/v1/browser_bindings?id=eq.${encodeURIComponent(active[0].id)}&revoked_at=is.null`,
         {
           method: 'PATCH',
-          headers: { Prefer: 'return=representation' },
+          headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
           body: JSON.stringify({
             revoked_at: now,
             revoked_by: auth.user.id,

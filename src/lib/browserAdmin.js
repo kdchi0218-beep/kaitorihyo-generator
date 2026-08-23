@@ -9,6 +9,14 @@ async function parse(res) {
   return json
 }
 
+export function usersForStore(users = [], storeId) {
+  return users.filter(user => (
+    user?.isAdmin !== true
+    && Array.isArray(user?.storeIds)
+    && user.storeIds.includes(storeId)
+  ))
+}
+
 export function createBrowserAdminApi(fetchImpl = globalThis.fetch) {
   const request = async (method, body) => parse(await fetchImpl('/api/admin/browser-users', {
     method,

@@ -143,8 +143,26 @@ async function readJson(response, fallback) {
   return body
 }
 
+/**
+ * このBFFからSupabase Data APIへ送る文字列bodyはJSONだけ。
+ * Content-Type未指定だとfetchがtext/plainを補うため、PostgREST向けに明示する。
+ */
+export function withJsonContentType(init = {}) {
+  if (typeof init.body !== 'string') return init
+  const headers = init.headers || {}
+  if (headers instanceof Headers) {
+    if (headers.has('Content-Type')) return init
+    const nextHeaders = new Headers(headers)
+    nextHeaders.set('Content-Type', 'application/json')
+    return { ...init, headers: nextHeaders }
+  }
+  const alreadySet = Object.keys(headers).some(name => name.toLowerCase() === 'content-type')
+  if (alreadySet) return init
+  return { ...init, headers: { ...headers, 'Content-Type': 'application/json' } }
+}
+
 async function userJson(auth, path, init) {
-  return readJson(await supabaseUserRequest(auth, path, init), [])
+  return readJson(await supabaseUserRequest(auth, path, withJsonContentType(init)), [])
 }
 
 async function isAdmin(auth) {

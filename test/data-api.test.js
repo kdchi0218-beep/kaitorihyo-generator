@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { normalizeDataRequest } from '../api/data.js'
+import { normalizeDataRequest, withJsonContentType } from '../api/data.js'
 import { postData, uploadSignedAsset } from '../src/lib/apiClient.js'
 
 const STORE_ID = '81efc564-45cf-4f31-b33f-7d25e36d033a'
@@ -38,6 +38,33 @@ test('data API: 店舗設定保存時に検証済みsettingsをBFFへ渡す', ()
   assert.throws(() => normalizeDataRequest({
     action: 'save_settings', storeId: STORE_ID, settings: [],
   }), /settings/)
+})
+
+test('data API: SupabaseへのJSON書込みはapplication/jsonとして送る', () => {
+  const request = withJsonContentType({
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({ name: 'とんとん' }),
+  })
+
+  assert.equal(request.headers['Content-Type'], 'application/json')
+  assert.equal(request.headers.Prefer, 'return=representation')
+  assert.deepEqual(JSON.parse(request.body), { name: 'とんとん' })
+})
+
+test('data API: bodyがない読込みではContent-Typeを勝手に追加しない', () => {
+  assert.deepEqual(withJsonContentType({ method: 'GET' }), { method: 'GET' })
+})
+
+test('data API: Headersインスタンスでも既存ヘッダーを保ったままJSONを指定する', () => {
+  const request = withJsonContentType({
+    method: 'PATCH',
+    headers: new Headers({ Prefer: 'return=representation' }),
+    body: JSON.stringify({ name: '更新' }),
+  })
+
+  assert.equal(request.headers.get('Content-Type'), 'application/json')
+  assert.equal(request.headers.get('Prefer'), 'return=representation')
 })
 
 test('data API: signed upload は安全な画像種別とサイズだけを受け付ける', () => {
