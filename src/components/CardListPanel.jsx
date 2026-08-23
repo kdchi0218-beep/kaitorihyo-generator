@@ -518,7 +518,7 @@ export default function CardListPanel({ genre, allCards, cards, setCards, storeI
       )}
 
       <p className="text-[10px] text-[#8c95a4] leading-snug">
-        使い方: ①カードを選ぶ→「選択中をこのリストに保存」。②毎日Excel取込後に「適用」で、登録カードを今日の価格で自動選択（在庫切れは自動スキップ）。
+        使い方: ①カードと順番を確認→「選択中で上書き」で既存内容を置き換え。②毎日Excel取込後に「適用」で、登録カードを今日の価格で自動選択（在庫切れは自動スキップ）。
       </p>
     </div>
   )

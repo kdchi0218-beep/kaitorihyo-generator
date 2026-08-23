@@ -25,6 +25,11 @@ export function normalizeInputSource(value) {
     : INPUT_SOURCES.TONTON
 }
 
+export function shouldReplaceImportedGenre(inputSource, result) {
+  return (inputSource === INPUT_SOURCES.VAULT || inputSource === INPUT_SOURCES.TONTON)
+    && Array.isArray(result?.cards)
+}
+
 export async function parseInputFile(file, inputSource) {
   let result
 

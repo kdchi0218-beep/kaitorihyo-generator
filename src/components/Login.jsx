@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { authApi } from '../lib/authApi.js'
+import HelpGuide from './HelpGuide.jsx'
 
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState('')
@@ -35,6 +36,12 @@ export default function Login({ onLogin }) {
         background: '#fff', padding: '40px', borderRadius: '14px',
         boxShadow: '0 8px 40px rgba(0,0,0,0.35)', width: '380px',
       }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+          <HelpGuide
+            label="初めての方・使い方"
+            className="text-xs px-2.5 py-1 rounded border border-[#1e3a5f]/40 text-[#1e3a5f] hover:bg-[#1e3a5f]/10 cursor-pointer"
+          />
+        </div>
         <h1 style={{
           fontSize: '20px', fontWeight: 800, marginBottom: '4px',
           color: '#1e3a5f', textAlign: 'center', letterSpacing: '1px',

@@ -5,9 +5,18 @@ import * as XLSX from 'xlsx'
 import {
   INPUT_SOURCES,
   INPUT_SOURCE_OPTIONS,
+  shouldReplaceImportedGenre,
   normalizeInputSource,
   parseInputFile,
 } from '../src/lib/inputSources.js'
+
+test('入力切替: 正常に解析できた空・未存在ジャンルも置換して前回データを残さない', () => {
+  assert.equal(shouldReplaceImportedGenre(INPUT_SOURCES.VAULT, { total: 0, cards: [] }), true)
+  assert.equal(shouldReplaceImportedGenre(INPUT_SOURCES.VAULT, { error: 'missing', cards: [] }), true)
+  assert.equal(shouldReplaceImportedGenre(INPUT_SOURCES.TONTON, { total: 0, cards: [] }), true)
+  assert.equal(shouldReplaceImportedGenre(INPUT_SOURCES.TONTON, { total: 1, cards: [{}] }), true)
+  assert.equal(shouldReplaceImportedGenre('unknown', { total: 1, cards: [{}] }), false)
+})
 import {
   detectTontonGenre,
   parseTontonRows,

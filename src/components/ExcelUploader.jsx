@@ -1,6 +1,12 @@
 import { useState, useRef, useCallback } from 'react'
 import { GENRE_BY_KEY, GENRES } from '../lib/genres.js'
-import { INPUT_SOURCES, INPUT_SOURCE_OPTIONS, normalizeInputSource, parseInputFile } from '../lib/inputSources.js'
+import {
+  INPUT_SOURCES,
+  INPUT_SOURCE_OPTIONS,
+  normalizeInputSource,
+  parseInputFile,
+  shouldReplaceImportedGenre,
+} from '../lib/inputSources.js'
 
 export default function ExcelUploader({ loadGenreCards, onGenreDetected }) {
   const [loading, setLoading] = useState(false)
@@ -34,8 +40,10 @@ export default function ExcelUploader({ loadGenreCards, onGenreDetected }) {
       for (const g of genresToReport) {
         const r = res[g.key]
         if (r && r.format && r.format !== 'unknown') format = r.format  // 検出した投入形式
+        if (r && shouldReplaceImportedGenre(inputSource, r)) {
+          loadGenreCards(g.key, r.cards || [], `excel:${inputSource}:${file.name}`)
+        }
         if (r && r.total > 0) {
-          loadGenreCards(g.key, r.cards, `excel:${inputSource}:${file.name}`)
           lines.push(`${g.label} ${r.total}件`)
         } else {
           lines.push(`${g.label} —`)

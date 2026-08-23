@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createStore, deleteStore, createUserInStore } from '../lib/storeSync.js'
 import { browserAdminApi } from '../lib/browserAdmin.js'
+import HelpGuide from './HelpGuide.jsx'
 
 function genPassword() {
   const a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
@@ -93,6 +94,7 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
           <h1 className="text-xl font-bold text-[#1e3a5f]">買取表 店舗・ユーザー管理</h1>
           <div className="flex items-center gap-3">
             <span className="text-[11px] text-[#8c95a4]">{userEmail}</span>
+            <HelpGuide />
             {canClose && (
               <button onClick={onClose} className="text-xs px-3 py-1.5 rounded bg-[#1e3a5f] text-white cursor-pointer">
                 買取表に戻る

@@ -1,149 +1,103 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { HELP_GUIDE, HELP_QUICK_STEPS } from '../lib/helpContent.js'
+import { nextFocusableIndex } from '../lib/helpFocus.js'
+import usageGuideUrl from '../../docs/USAGE.md?url'
 
-// 使い方説明モーダル。サイドバーの「使い方」ボタンから開く。
-// 内容を更新したら docs/USAGE.md も同時更新すること。
-
-const SECTIONS = [
-  {
-    title: '1. 毎日の基本の流れ',
-    body: [
-      '① 「とんとん形式」または「Vault形式」を選び、その日のExcelファイルを画面にドラッグ',
-      '② ジャンルタブ（ポケモン/旧裏/ワンピース/遊戯王/ヴァイス）を選ぶ',
-      '③ 定番リストを選んで「適用」→ 登録した順番で買取表に並ぶ',
-      '④ 必要ならカードを追加・削除・並べ替え',
-      '⑤ 「PNG保存」または「CSV出力」で出力（画像が複数ページなら自動でZIP）',
-    ],
-  },
-  {
-    title: '2. データの取り込み',
-    body: [
-      '・とんとん形式: 🐽トントン_買取表管理_v2から出力したポケモン/ワンピースの単一シートを読み込み',
-      '・Vault形式: 1ファイルをドラッグすると5ジャンル全シートを自動で読み込み',
-      '・ジャンル個別: 「このジャンルだけ読み込む」で1シートだけのExcelもOK',
-      '・スプレッドシートURLからの取得も可能（URLは毎日変わってもOK）',
-      '・読み込むたびに価格は最新になります',
-    ],
-  },
-  {
-    title: '3. カード選択・並べ替え',
-    body: [
-      '・「選択中」タブ: 買取表に載るカード。ドラッグ/▲▼で並べ替え',
-      '・☑複数チェック→チェックした行のどれかをドラッグで、まとめて移動（順序は維持）',
-      '・「未選択」タブ: クリックで1枚追加。☑複数チェック→「チェックしたN枚を追加」で一括追加',
-      '・プレビュー上でもカードを直接ドラッグ&ドロップで位置変更できます（ページまたぎOK）',
-      '・「どのリストにも入っていないカードのみ表示」: 新しくExcelに追加されたカードの発見用（タブの下のチェック）',
-      '・カード名/価格はダブルクリックで直接編集（価格は数字 or「要相談」等の文字もOK）',
-      '・手動で入力した価格は、掛け率を変えても上書きされません',
-    ],
-  },
-  {
-    title: '4. 定番リスト（毎日使う並びの保存）',
-    body: [
-      '・作成: カードを選んで リスト名入力→「作成」→「選択中で上書き」で保存',
-      '・適用: リストを選んで「適用」→ その日の価格で保存順どおりに並ぶ',
-      '・「選択中を追加」: 今選んでいるカードのうち、リストに無いものだけを差分追加',
-      '・「中身を編集」: 追加/削除/並べ替え（ドラッグ・▲▼・☑複数チェックでまとめて移動）。検索して追加もここから。保存すると即プレビューに反映',
-      '・「CSV」: リストの中身（保存順・型番・今日の在庫状況・前回価格）をExcelで確認できる',
-      '・「他店へ送信」: リストを別店舗にコピー（リスト選択→送信先を選ぶ）',
-      '・リスト/テンプレートは同じ店舗のアカウント間で共有されます',
-    ],
-  },
-  {
-    title: '5. 発注が来てないカードの表示（前回価格）',
-    body: [
-      '・「発注が来てないカードも表示する」にチェック→その場でプレビューに出ます（チェックを外すと消える）',
-      '・価格は「前回読み込み価格」=最後に発注があった日の価格に今日の掛け率を適用した金額',
-      '・プレビューのカード左上に「前回価格」バッジが出ます（出力画像には印字されません）',
-      '・価格をダブルクリックで手動修正すると、その価格がリストに保存されます。全ジャンルで編集当日は「前回価格」バッジが消え、翌日も発注なしなら同じ金額にバッジが再表示されます',
-      '・そのカードの発注が再び来たら、Excelの実価格に自動で切り替わります',
-    ],
-  },
-  {
-    title: '6. Excelに無いカードの事前登録',
-    body: [
-      '・定番リストの緑の点線ボタン「＋ Excelに無いカードを手入力で追加（事前登録）」から（1クリックでフォームが開く）',
-      '・カード名（必須）/型番/種別/レアリティ(遊戯王)/表示価格/画像URLを入力して追加→「この内容で保存」',
-      '・発注が来てない間は入力した価格・画像で表示され、Excelに載ったら自動で実データに切替',
-      '・注意: カード名と型番はExcelの表記と完全一致させること（一致しないと別カード扱い）',
-    ],
-  },
-  {
-    title: '7. カード名が変わった時の警告',
-    body: [
-      '・Excel側でカード名が変更されると、適用時に黄色い警告が出ます',
-      '・「保存名→今日の名前」の候補が表示され、「この名前に更新」でリストを引き継げます',
-      '・本当に完売しただけのカードには警告は出ません',
-    ],
-  },
-  {
-    title: '8. 見た目・価格の設定',
-    body: [
-      '・買取価格ルール: 掛け率%（±）/定額調整（±円）/端数の単位と丸め方向',
-      '・金額帯ごとのルール: 帯ごとに掛け率・定額に加え、端数の単位・丸め方向も個別指定可（未指定の項目は上の「基本」に従う）',
-      '・キャンバス/背景/ヘッダー/グリッド(列×行)/カード枠/PSAバッジ/レアリティ表示(遊戯王)/カード名/型番/価格文字/更新日時/フッター',
-      '・各スライダーは−/＋ボタンで1ずつ微調整できます',
-      '・テンプレート: 見た目+価格ルール一式を保存/読込/上書き/他店送信。「設定をデフォルトに戻す」も可',
-    ],
-  },
-  {
-    title: '9. 出力',
-    body: [
-      '・「PNG保存」: プレビューと同じ画像をダウンロード（高解像度2倍）',
-      '・「CSV出力」: 画面に表示中の買取表だけを、表示順・価格・発注状況つきでExcel向けCSVに出力（定番リストの「CSV」はリスト内容の確認用）',
-      '・カードが1ページ（列×行）を超えると自動で複数ページ→ZIPでまとめて保存',
-      '・画面専用の表示（「前回価格」バッジ等）は出力画像に入りません',
-    ],
-  },
-  {
-    title: '10. 困ったとき',
-    body: [
-      '・画面上部に「新しいバージョンがあります」が出たら→「今すぐ更新」を押す（古いままだと不具合が直りません）',
-      '・表示がおかしい時はまず Cmd+Shift+R（Windows: Ctrl+F5）で強制再読み込み',
-      '・リストの中身が画面と合っているか確認したい→「CSV」ボタンで中身をダウンロード',
-      '・不具合報告時は、サイドバー下の「v」から始まるバージョン番号とスクリーンショットを添えてください',
-    ],
-  },
-]
-
-export default function HelpGuide() {
+export default function HelpGuide({ label = '使い方', className = '' }) {
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const openerRef = useRef(null)
+  const searchRef = useRef(null)
+  const dialogRef = useRef(null)
+
+  const visibleSections = useMemo(() => {
+    const keyword = query.trim().toLocaleLowerCase('ja-JP')
+    if (!keyword) return HELP_GUIDE
+    return HELP_GUIDE.filter(section => [section.title, ...section.items]
+      .join(' ').toLocaleLowerCase('ja-JP').includes(keyword))
+  }, [query])
+
+  const close = () => setOpen(false)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const originalOverflow = document.body.style.overflow
+    const opener = openerRef.current
+    document.body.style.overflow = 'hidden'
+    searchRef.current?.focus()
+    const onKeyDown = event => {
+      if (event.key === 'Escape') {
+        close()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const focusable = [...(dialogRef.current?.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) || [])].filter(element => element.getAttribute('aria-hidden') !== 'true')
+      const nextIndex = nextFocusableIndex(focusable.indexOf(document.activeElement), focusable.length, event.shiftKey)
+      if (nextIndex < 0) return
+      event.preventDefault()
+      focusable[nextIndex].focus()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = originalOverflow
+      window.removeEventListener('keydown', onKeyDown)
+      opener?.focus()
+    }
+  }, [open])
+
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="text-[10px] px-2 py-0.5 rounded border border-[#1e3a5f]/40 text-[#1e3a5f] hover:bg-[#1e3a5f]/10 cursor-pointer"
-        title="このツールの使い方説明を開く"
-      >使い方</button>
+      <button ref={openerRef} type="button" onClick={() => { setQuery(''); setOpen(true) }} aria-haspopup="dialog"
+        className={className || 'text-[10px] px-2 py-1 rounded border border-[#1e3a5f]/40 text-[#1e3a5f] hover:bg-[#1e3a5f]/10 cursor-pointer'}>{label}</button>
+
       {open && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-          onClick={() => setOpen(false)}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            className="bg-white rounded-lg shadow-2xl flex flex-col"
-            style={{ width: 'min(720px, 92vw)', maxHeight: '86vh' }}
-          >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-[#e0e4ea]">
-              <div className="text-sm font-bold text-[#1e3a5f]">とんとん 買取表ジェネレーター 使い方</div>
-              <button onClick={() => setOpen(false)} className="text-[#8c95a4] hover:text-[#1e3a5f] cursor-pointer text-lg leading-none px-1">×</button>
+        <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) close() }}
+          style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="help-guide-title"
+            className="bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden" style={{ width: 'min(820px, 96vw)', maxHeight: '90vh' }}>
+            <header className="flex items-start justify-between gap-4 px-5 py-4 border-b border-[#e0e4ea]">
+              <div>
+                <h2 id="help-guide-title" className="text-base font-bold text-[#1e3a5f]">とんとん 買取表ジェネレーターの使い方</h2>
+                <p className="text-[11px] text-[#5a6577] mt-1">初めての方は、まず「最短5ステップ」だけ読めば使い始められます。</p>
+              </div>
+              <button type="button" onClick={close} aria-label="使い方を閉じる" className="text-[#5a6577] hover:text-[#1e3a5f] text-xl leading-none px-2 py-1 cursor-pointer">×</button>
+            </header>
+
+            <div className="overflow-y-auto px-5 py-4 space-y-5">
+              <div className="rounded-lg border border-[#cfe0f5] bg-[#f4f8fd] p-3">
+                <h3 className="text-xs font-bold text-[#1e3a5f] mb-2">最短5ステップ</h3>
+                <ol className="grid gap-2 sm:grid-cols-2">
+                  {HELP_QUICK_STEPS.map(step => <li key={step.id} className="rounded bg-white px-3 py-2 border border-[#e0e4ea]">
+                    <p className="text-[11px] font-semibold text-[#1e3a5f]">{step.title}</p>
+                    <p className="text-[10px] leading-relaxed text-[#5a6577] mt-0.5">{step.body}</p>
+                  </li>)}
+                </ol>
+                <a href={usageGuideUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-block mt-3 text-[11px] font-semibold text-[#1e3a5f] underline underline-offset-2">
+                  詳細手順書を別タブで開く（毎日の操作・管理・復旧）
+                </a>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <label htmlFor="help-guide-search" className="text-[11px] font-semibold text-[#1e3a5f] whitespace-nowrap">説明を検索</label>
+                <input ref={searchRef} id="help-guide-search" type="search" value={query} onChange={event => setQuery(event.target.value)}
+                  placeholder="例: ブラウザ固定、Excel、定番リスト" className="w-full text-sm px-3 py-2 border border-[#d0d5dd] rounded outline-none focus:border-[#1e3a5f]" />
+              </div>
+
+              {!query && <nav aria-label="使い方の目次" className="flex flex-wrap gap-x-3 gap-y-1">
+                {HELP_GUIDE.map(section => <a key={section.id} href={`#help-${section.id}`} className="text-[11px] text-[#1e3a5f] underline underline-offset-2">{section.title}</a>)}
+              </nav>}
+
+              {visibleSections.length ? visibleSections.map(section => <article id={`help-${section.id}`} key={section.id} className="scroll-mt-3 border-t border-[#edf0f4] pt-4">
+                <h3 className="text-sm font-bold text-[#1e3a5f] mb-2">{section.title}</h3>
+                <ul className="space-y-1.5 list-disc pl-4">
+                  {section.items.map(item => <li key={item} className="text-[11px] text-[#5a6577] leading-relaxed">{item}</li>)}
+                </ul>
+              </article>) : <p className="text-sm text-[#5a6577] py-6 text-center">「{query}」に一致する説明はありません。別の言葉で検索してください。</p>}
             </div>
-            <div className="overflow-y-auto px-5 py-4 space-y-4">
-              {SECTIONS.map(sec => (
-                <div key={sec.title}>
-                  <div className="text-xs font-bold text-[#1e3a5f] mb-1.5">{sec.title}</div>
-                  <ul className="space-y-1">
-                    {sec.body.map((line, i) => (
-                      <li key={i} className="text-[11px] text-[#5a6577] leading-relaxed">{line}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-              <p className="text-[10px] text-[#8c95a4] pt-2 border-t border-[#e0e4ea]">
-                詳細版はリポジトリの docs/USAGE.md にもあります。
-              </p>
-            </div>
-          </div>
+          </section>
         </div>
       )}
     </>
