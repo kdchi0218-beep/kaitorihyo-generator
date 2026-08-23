@@ -25,6 +25,10 @@ export function normalizeInputSource(value) {
     : INPUT_SOURCES.TONTON
 }
 
+export function supportsRegularLists(inputSource) {
+  return inputSource === INPUT_SOURCES.VAULT
+}
+
 export function shouldReplaceImportedGenre(inputSource, result) {
   return (inputSource === INPUT_SOURCES.VAULT || inputSource === INPUT_SOURCES.TONTON)
     && Array.isArray(result?.cards)

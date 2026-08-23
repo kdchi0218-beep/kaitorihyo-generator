@@ -7,6 +7,7 @@ import {
   INPUT_SOURCES,
   INPUT_SOURCE_OPTIONS,
   shouldReplaceImportedGenre,
+  supportsRegularLists,
   normalizeInputSource,
   parseInputFile,
 } from '../src/lib/inputSources.js'
@@ -39,6 +40,28 @@ test('入力切替: 利用者向けの取込表示をパワンへ統一する', 
   assert.match(source, /パワン新形式/)
   assert.match(source, /パワン: 1ファイルで5ジャンル一括読み込み/)
   assert.doesNotMatch(source, /Vault(?:新形式|旧形式|形式不明|: 1ファイル)/)
+})
+
+test('リスト機能: パワン形式でだけ有効にする', async () => {
+  assert.equal(supportsRegularLists(INPUT_SOURCES.VAULT), true)
+  assert.equal(supportsRegularLists(INPUT_SOURCES.TONTON), false)
+  assert.equal(supportsRegularLists('unknown'), false)
+
+  const [app, sidebar, uploader, help, usage] = await Promise.all([
+    readFile(new URL('../src/App.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/Sidebar.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/ExcelUploader.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/lib/helpContent.js', import.meta.url), 'utf8'),
+    readFile(new URL('../docs/USAGE.md', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(app, /const \[inputSource, setInputSource\]/)
+  assert.match(sidebar, /supportsRegularLists\(inputSource\)/)
+  assert.match(sidebar, /listEnabled &&/)
+  assert.match(sidebar, /listedKeys=\{listEnabled \? listedKeys : null\}/)
+  assert.match(uploader, /inputSource, onInputSourceChange/)
+  assert.match(help, /定番リスト[^。]*パワン形式|パワン形式[^。]*定番リスト/)
+  assert.match(usage, /定番リスト[^。\n]*パワン形式|パワン形式[^。\n]*定番リスト/)
 })
 
 test('データ取得: スプシURL取得を画面と利用者向け案内から除外する', async () => {

@@ -8,6 +8,7 @@ import { GENRES, GENRE_BY_KEY } from './lib/genres.js'
 import { computeDisplayPrice } from './lib/pricing.js'
 import { authApi } from './lib/authApi.js'
 import { checkIsAdmin, listMyStores, listAllStores, loadStoreSettings, saveStoreSettings } from './lib/storeSync.js'
+import { normalizeInputSource } from './lib/inputSources.js'
 
 function emptyGenreData() {
   const obj = {}
@@ -185,8 +186,12 @@ function App() {
 
   // ---- カードデータ（店舗ごと・ローカルキャッシュ） ----
   const [genreData, setGenreData] = useState(emptyGenreData)
+  const [inputSource, setInputSource] = useState(() => (
+    normalizeInputSource(localStorage.getItem('tonton_input_source'))
+  ))
   const [activeGenre, setActiveGenre] = useState(() => localStorage.getItem('tonton_activeGenre') || GENRES[0].key)
 
+  useEffect(() => { localStorage.setItem('tonton_input_source', inputSource) }, [inputSource])
   useEffect(() => { localStorage.setItem('tonton_activeGenre', activeGenre) }, [activeGenre])
 
   // 店舗切替でその店のカードをローカルから復元
@@ -329,6 +334,8 @@ function App() {
         activeGenre={activeGenre}
         setActiveGenre={setActiveGenre}
         genreMeta={genreMeta}
+        inputSource={inputSource}
+        setInputSource={setInputSource}
         loadGenreCards={loadGenreCards}
         allCards={active.allCards}
         setAllCards={setActiveAllCards}

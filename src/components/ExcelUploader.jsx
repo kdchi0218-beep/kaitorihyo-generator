@@ -3,23 +3,18 @@ import { GENRE_BY_KEY, GENRES } from '../lib/genres.js'
 import {
   INPUT_SOURCES,
   INPUT_SOURCE_OPTIONS,
-  normalizeInputSource,
   parseInputFile,
   shouldReplaceImportedGenre,
 } from '../lib/inputSources.js'
 
-export default function ExcelUploader({ loadGenreCards, onGenreDetected }) {
+export default function ExcelUploader({ loadGenreCards, onGenreDetected, inputSource, onInputSourceChange }) {
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState(null)
   const [dragging, setDragging] = useState(false)
-  const [inputSource, setInputSource] = useState(() => (
-    normalizeInputSource(localStorage.getItem('tonton_input_source'))
-  ))
   const fileRef = useRef()
 
   const selectInputSource = (nextSource) => {
-    setInputSource(nextSource)
-    localStorage.setItem('tonton_input_source', nextSource)
+    onInputSourceChange(nextSource)
     setStatus(null)
   }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import AccordionSection from './AccordionSection.jsx'
 import GenreTabs from './GenreTabs.jsx'
 import StoreSwitcher from './StoreSwitcher.jsx'
@@ -21,11 +21,13 @@ import CardListPanel from './CardListPanel.jsx'
 import HelpGuide from './HelpGuide.jsx'
 import ExportButtons from './ExportButtons.jsx'
 import { GENRE_BY_KEY } from '../lib/genres.js'
+import { supportsRegularLists } from '../lib/inputSources.js'
 
 export default function Sidebar({
   width = 440,
   stores, allStores = [], isAdmin, activeStoreId, setActiveStoreId, onOpenAdmin,
   activeGenre, setActiveGenre, genreMeta, loadGenreCards,
+  inputSource, setInputSource,
   allCards, setAllCards, cards, setCards, settings, updateSettings, setSettings,
   userEmail, onClearData, onLogout,
 }) {
@@ -33,6 +35,11 @@ export default function Sidebar({
   const genreLabel = GENRE_BY_KEY[activeGenre]?.label || activeGenre
   // このジャンルの全定番リストが覆っているカードキー（CardListPanelが算出 → CardSelectorのフィルタに渡す）
   const [listedKeys, setListedKeys] = useState(null)
+  const listEnabled = supportsRegularLists(inputSource)
+
+  useEffect(() => {
+    if (!listEnabled) setListedKeys(null)
+  }, [listEnabled])
 
   return (
     <div style={{ width, minWidth: width, flexShrink: 0 }} className="h-screen overflow-y-auto bg-white border-r border-[#e0e4ea] flex flex-col">
@@ -76,7 +83,12 @@ export default function Sidebar({
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
         <AccordionSection title="データ取得" defaultOpen>
           <div className="text-[11px] font-semibold text-[#1e3a5f] mb-1">入力形式を選んでExcelを読み込み</div>
-          <ExcelUploader loadGenreCards={loadGenreCards} onGenreDetected={setActiveGenre} />
+          <ExcelUploader
+            loadGenreCards={loadGenreCards}
+            onGenreDetected={setActiveGenre}
+            inputSource={inputSource}
+            onInputSourceChange={setInputSource}
+          />
 
           <details className="mt-2">
             <summary className="text-[11px] text-[#5a6577] cursor-pointer hover:text-[#1e3a5f]">
@@ -156,15 +168,17 @@ export default function Sidebar({
         </AccordionSection>
 
         <AccordionSection title={`カード選択（${genreLabel} ・ ${selectedCount}枚）`} defaultOpen>
-          <div className="mb-2">
-            <CardListPanel genre={activeGenre} allCards={allCards} cards={cards} setCards={setCards} storeId={activeStoreId} stores={allStores} settings={settings} onListedKeysChange={setListedKeys} />
-          </div>
+          {listEnabled && (
+            <div className="mb-2">
+              <CardListPanel genre={activeGenre} allCards={allCards} cards={cards} setCards={setCards} storeId={activeStoreId} stores={allStores} settings={settings} onListedKeysChange={setListedKeys} />
+            </div>
+          )}
           <CardSelector
             allCards={allCards}
             setAllCards={setAllCards}
             cards={cards}
             setCards={setCards}
-            listedKeys={listedKeys}
+            listedKeys={listEnabled ? listedKeys : null}
             genre={activeGenre}
           />
         </AccordionSection>
