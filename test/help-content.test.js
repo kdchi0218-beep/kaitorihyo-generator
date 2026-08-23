@@ -79,6 +79,15 @@ test('使い方: PCでも小さすぎない文字と整理されたレイアウ�
   assert.doesNotMatch(dialogSource, /text-\[(?:10|11)px\]/)
 })
 
+test('使い方: サイドバーのsticky要素より必ず前面に表示する', async () => {
+  const source = await readFile(new URL('../src/components/HelpGuide.jsx', import.meta.url), 'utf8')
+
+  assert.match(source, /createPortal/)
+  assert.match(source, /document\.body/)
+  assert.match(source, /zIndex: 10000/)
+  assert.doesNotMatch(source, /zIndex: 9998/)
+})
+
 test('使い方: 利用者向け手順書もパワン形式へ統一する', async () => {
   const usage = await readFile(new URL('../docs/USAGE.md', import.meta.url), 'utf8')
   const help = HELP_GUIDE.flatMap(section => section.items).join('\n')

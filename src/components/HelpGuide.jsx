@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { HELP_GUIDE, HELP_QUICK_STEPS } from '../lib/helpContent.js'
 import { nextFocusableIndex } from '../lib/helpFocus.js'
 import usageGuideUrl from '../../docs/USAGE.md?url'
@@ -51,10 +52,10 @@ export default function HelpGuide({ label = '使い方', className = '' }) {
       <button ref={openerRef} type="button" onClick={() => { setQuery(''); setOpen(true) }} aria-haspopup="dialog"
         className={className || 'text-[10px] px-2 py-1 rounded border border-[#1e3a5f]/40 text-[#1e3a5f] hover:bg-[#1e3a5f]/10 cursor-pointer'}>{label}</button>
 
-      {open && (
+      {open && typeof document !== 'undefined' && createPortal(
         <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) close() }}
           className="p-2 sm:p-4"
-          style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="help-guide-title" aria-describedby="help-guide-description" tabIndex={-1}
             className="w-full max-w-[1040px] max-h-[92svh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden">
             <header className="flex items-start justify-between gap-4 px-4 py-4 sm:px-6 sm:py-5 border-b border-[#e0e4ea]">
@@ -123,7 +124,8 @@ export default function HelpGuide({ label = '使い方', className = '' }) {
               ) : <p className="text-sm text-[#5a6577] py-6 text-center">「{query}」に一致する説明はありません。別の言葉で検索してください。</p>)}
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )
