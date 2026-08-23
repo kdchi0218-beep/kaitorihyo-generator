@@ -1,4 +1,4 @@
-import SettingRow, { SettingToggle } from './SettingRow.jsx'
+import SettingRow, { SettingToggle, StepRange } from './SettingRow.jsx'
 
 export default function FooterSettings({ settings, update }) {
   return (
@@ -6,34 +6,53 @@ export default function FooterSettings({ settings, update }) {
       <SettingToggle label="更新日時を表示" checked={settings.showUpdateDate} onChange={v => update('showUpdateDate', v)} />
       {settings.showUpdateDate && (
         <>
-          <SettingRow label="表示位置">
-            <select
-              value={settings.updateDatePosition || 'bottom'}
-              onChange={e => update('updateDatePosition', e.target.value)}
-              className="text-xs px-2 py-1 rounded border border-[#d0d5dd]"
-            >
-              <option value="top">ヘッダー下</option>
-              <option value="bottom">フッター上</option>
-            </select>
-          </SettingRow>
-          <SettingRow label="左右位置">
-            <select
-              value={settings.updateDateAlign || 'right'}
-              onChange={e => update('updateDateAlign', e.target.value)}
-              className="text-xs px-2 py-1 rounded border border-[#d0d5dd]"
-            >
-              <option value="left">左</option>
-              <option value="center">中央</option>
-              <option value="right">右</option>
-            </select>
-          </SettingRow>
+          <SettingToggle label="自由配置（px指定）" checked={settings.updateDateFreePos} onChange={v => update('updateDateFreePos', v)} />
+          {settings.updateDateFreePos ? (
+            <>
+              <SettingRow label="X（左から px）">
+                <input type="number" step={5} value={settings.updateDateX ?? 20} onChange={e => update('updateDateX', Number(e.target.value))} className="w-24" />
+              </SettingRow>
+              <SettingRow label="Y（上から px）">
+                <input type="number" step={5} value={settings.updateDateY ?? 20} onChange={e => update('updateDateY', Number(e.target.value))} className="w-24" />
+              </SettingRow>
+            </>
+          ) : (
+            <>
+              <SettingRow label="表示位置">
+                <select
+                  value={settings.updateDatePosition || 'bottom'}
+                  onChange={e => update('updateDatePosition', e.target.value)}
+                  className="text-xs px-2 py-1 rounded border border-[#d0d5dd]"
+                >
+                  <option value="top">ヘッダー下</option>
+                  <option value="bottom">フッター上</option>
+                </select>
+              </SettingRow>
+              <SettingRow label="左右位置">
+                <select
+                  value={settings.updateDateAlign || 'right'}
+                  onChange={e => update('updateDateAlign', e.target.value)}
+                  className="text-xs px-2 py-1 rounded border border-[#d0d5dd]"
+                >
+                  <option value="left">左</option>
+                  <option value="center">中央</option>
+                  <option value="right">右</option>
+                </select>
+              </SettingRow>
+            </>
+          )}
           <SettingRow label="文字サイズ">
-            <input type="range" min={8} max={24} value={settings.updateDateFontSize} onChange={e => update('updateDateFontSize', Number(e.target.value))} />
-            <span className="text-xs text-[#5a6577] w-6">{settings.updateDateFontSize}</span>
+            <StepRange value={settings.updateDateFontSize} min={8} max={24} onChange={x => update('updateDateFontSize', x)} />
           </SettingRow>
           <SettingRow label="文字色">
             <input type="color" value={settings.updateDateColor} onChange={e => update('updateDateColor', e.target.value)} />
           </SettingRow>
+          <SettingToggle label="背景色を付ける" checked={settings.updateDateBgEnabled} onChange={v => update('updateDateBgEnabled', v)} />
+          {settings.updateDateBgEnabled && (
+            <SettingRow label="背景色">
+              <input type="color" value={settings.updateDateBgColor || '#000000'} onChange={e => update('updateDateBgColor', e.target.value)} />
+            </SettingRow>
+          )}
         </>
       )}
       <div className="pt-2 border-t border-[#e0e4ea]" />
@@ -51,18 +70,17 @@ export default function FooterSettings({ settings, update }) {
             />
           </div>
           <SettingRow label="文字サイズ">
-            <input
-              type="range"
-              min={6}
-              max={18}
-              value={settings.footerFontSize}
-              onChange={e => update('footerFontSize', Number(e.target.value))}
-            />
-            <span className="text-xs text-[#5a6577] w-6">{settings.footerFontSize}</span>
+            <StepRange value={settings.footerFontSize} min={6} max={18} onChange={x => update('footerFontSize', x)} />
           </SettingRow>
           <SettingRow label="文字色">
             <input type="color" value={settings.footerColor} onChange={e => update('footerColor', e.target.value)} />
           </SettingRow>
+          <SettingToggle label="背景色を付ける" checked={settings.footerBgEnabled} onChange={v => update('footerBgEnabled', v)} />
+          {settings.footerBgEnabled && (
+            <SettingRow label="背景色">
+              <input type="color" value={settings.footerBgColor || '#000000'} onChange={e => update('footerBgColor', e.target.value)} />
+            </SettingRow>
+          )}
         </>
       )}
     </div>

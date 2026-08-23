@@ -1,3 +1,18 @@
+// −／＋ボタン付きスライダー（1ステップずつクリックで動かせる）
+export function StepRange({ value, min, max, step = 1, onChange }) {
+  const v = Number(value)
+  const clamp = (n) => Math.max(min, Math.min(max, Number(n.toFixed(4))))
+  const btn = 'w-5 h-5 flex items-center justify-center rounded border border-[#d0d5dd] bg-white text-[#5a6577] hover:bg-[#eef1f6] cursor-pointer text-xs leading-none select-none flex-shrink-0'
+  return (
+    <div className="flex items-center gap-1">
+      <button type="button" onClick={() => onChange(clamp(v - step))} className={btn}>−</button>
+      <input type="range" min={min} max={max} step={step} value={v} onChange={e => onChange(Number(e.target.value))} />
+      <button type="button" onClick={() => onChange(clamp(v + step))} className={btn}>＋</button>
+      <span className="text-xs text-[#5a6577] w-7 text-right">{v}</span>
+    </div>
+  )
+}
+
 export default function SettingRow({ label, children }) {
   return (
     <div className="flex items-center justify-between gap-3 py-1">

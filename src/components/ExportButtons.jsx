@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { exportAllPages } from '../lib/exporter.js'
+import { cardsToCsv } from '../lib/cardCsv.js'
+import { tokyoDateKey } from '../lib/cardKeys.js'
 
 export default function ExportButtons({ cards, settings }) {
   const [exporting, setExporting] = useState(false)
@@ -32,6 +34,19 @@ export default function ExportButtons({ cards, settings }) {
     }
   }
 
+  const handleCsvExport = () => {
+    const blob = new Blob([cardsToCsv(cards)], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    const header = String(settings.headerText || '買取表').replace(/[\\/:*?"<>|]/g, '_')
+    link.href = url
+    link.download = `買取表_${header}_${tokyoDateKey()}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
   return (
     <div className="px-4 py-3 border-t border-[#e0e4ea] bg-white flex gap-2 items-center">
       <select
@@ -54,6 +69,11 @@ export default function ExportButtons({ cards, settings }) {
         )}
         {pageCount > 1 ? `${format.toUpperCase()}出力（${pageCount}枚ZIP）` : `${format.toUpperCase()}出力`}
       </button>
+      <button
+        onClick={handleCsvExport}
+        disabled={cards.length === 0}
+        className="py-2.5 px-3 rounded-lg border border-[#1e3a5f] text-[#1e3a5f] hover:bg-[#edf2f7] disabled:opacity-40 text-sm font-medium cursor-pointer transition-colors whitespace-nowrap"
+      >CSV出力</button>
       <div className="text-xs text-[#8c95a4] whitespace-nowrap">
         {cards.length}枚
         {pageCount > 1 && ` / ${pageCount}ページ`}

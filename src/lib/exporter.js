@@ -1,10 +1,6 @@
 import { toPng, toJpeg } from 'html-to-image'
 import JSZip from 'jszip'
 
-const API_BASE = location.hostname === 'localhost'
-  ? 'http://localhost:3001'
-  : '/kaitori'
-
 export async function exportAllPages(pageElements, format = 'png', baseName = '買取表') {
   const fn = format === 'jpeg' ? toJpeg : toPng
   const ext = format === 'jpeg' ? '.jpg' : '.png'
@@ -16,14 +12,15 @@ export async function exportAllPages(pageElements, format = 'png', baseName = '�
 
     // 全画像をbase64に変換してからhtml-to-imageに渡す
     const converted = await convertImagesToBase64(el)
-    console.log(`ページ${i + 1}: ${converted.success}/${converted.total}枚変換成功`)
+    if (import.meta.env.DEV) console.log(`ページ${i + 1}: ${converted.success}/${converted.total}枚変換成功`)
 
     const dataUrl = await fn(el, {
       quality: format === 'jpeg' ? 0.95 : 1.0,
       pixelRatio: 2,
       skipAutoScale: true,
       backgroundColor: format === 'jpeg' ? '#ffffff' : undefined,
-      filter: (node) => node.tagName !== 'NOSCRIPT',
+      // export-exclude クラスの要素（「前回価格」マーカー等の画面専用表示）は出力画像に載せない
+      filter: (node) => node.tagName !== 'NOSCRIPT' && !(node.classList && node.classList.contains('export-exclude')),
     })
     const suffix = pageElements.length > 1 ? `_${i + 1}` : ''
     images.push({ name: baseName + suffix + ext, dataUrl })
@@ -32,10 +29,7 @@ export async function exportAllPages(pageElements, format = 'png', baseName = '�
   if (images.length === 0) throw new Error('出力する画像がありません')
 
   if (images.length === 1) {
-    const a = document.createElement('a')
-    a.download = images[0].name
-    a.href = images[0].dataUrl
-    a.click()
+    triggerDownload(images[0].dataUrl, images[0].name)
   } else {
     const zip = new JSZip()
     for (const img of images) {
@@ -43,12 +37,20 @@ export async function exportAllPages(pageElements, format = 'png', baseName = '�
     }
     const blob = await zip.generateAsync({ type: 'blob' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.download = baseName + '.zip'
-    a.href = url
-    a.click()
-    URL.revokeObjectURL(url)
+    triggerDownload(url, baseName + '.zip')
+    // クリック処理が完了する前にURLを破棄しないよう遅延解放
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
   }
+}
+
+// body に追加してから click（モバイルSafari等での未発火対策）
+function triggerDownload(href, filename) {
+  const a = document.createElement('a')
+  a.download = filename
+  a.href = href
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
 }
 
 async function convertImagesToBase64(container) {
@@ -60,31 +62,29 @@ async function convertImagesToBase64(container) {
     const src = img.src
     if (!src || src.startsWith('data:') || src.startsWith('blob:')) return
 
-    const isSameOrigin = src.startsWith(location.origin)
-
-    // 同一オリジン → 直接fetch（プロキシ不要）
-    if (isSameOrigin) {
-      try {
-        const res = await fetch(src)
+    // ① 直接fetch（同一オリジン or CORS許可されたクロスオリジン=Supabase等）
+    try {
+      const res = await fetch(src, { mode: 'cors', cache: 'no-cache' })
+      if (res.ok) {
         const blob = await res.blob()
         img.src = await blobToDataUrl(blob)
         success++
         return
-      } catch {
-        console.warn('同一オリジンfetch失敗:', src.substring(0, 80))
       }
+    } catch {
+      // CORS不可 → プロキシへフォールバック
     }
 
-    // クロスオリジン → プロキシ経由
+    // ② Vercel画像プロキシ経由（CORS非対応ドメインの保険）
     try {
-      const res = await fetch(`${API_BASE}/api/image-proxy?url=${encodeURIComponent(src)}`)
+      const res = await fetch(`/api/image-proxy?url=${encodeURIComponent(src)}`)
       if (!res.ok) throw new Error(`${res.status}`)
       const blob = await res.blob()
       img.src = await blobToDataUrl(blob)
       success++
       return
     } catch (e) {
-      console.warn('プロキシ失敗:', e.message, src.substring(0, 80))
+      console.warn('画像変換失敗:', e.message, src.substring(0, 80))
     }
   }))
 

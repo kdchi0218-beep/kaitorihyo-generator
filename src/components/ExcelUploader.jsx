@@ -1,127 +1,112 @@
 import { useState, useRef, useCallback } from 'react'
-import { parseExcel } from '../lib/excelParser.js'
+import { GENRE_BY_KEY, GENRES } from '../lib/genres.js'
+import { INPUT_SOURCES, INPUT_SOURCE_OPTIONS, parseInputFile } from '../lib/inputSources.js'
 
-export default function ExcelUploader({ allCards, setAllCards, setCards, userFormat, updateSettings }) {
-  const [status, setStatus] = useState(null)
+export default function ExcelUploader({ loadGenreCards, onGenreDetected }) {
   const [loading, setLoading] = useState(false)
+  const [status, setStatus] = useState(null)
   const [dragging, setDragging] = useState(false)
-  const [fileName, setFileName] = useState(null)
+  const [inputSource, setInputSource] = useState(() => (
+    localStorage.getItem('tonton_input_source') || INPUT_SOURCES.TONTON
+  ))
   const fileRef = useRef()
 
-  const processFile = useCallback(async (file) => {
-    if (!file) return
-    setLoading(true)
+  const selectInputSource = (nextSource) => {
+    setInputSource(nextSource)
+    localStorage.setItem('tonton_input_source', nextSource)
     setStatus(null)
+  }
 
+  const process = useCallback(async (file) => {
+    if (!file) return
+    if (!/\.(xlsx|xls)$/i.test(file.name)) {
+      setStatus({ type: 'error', message: '.xlsx / .xls ファイルを選んでください' }); return
+    }
+    setLoading(true); setStatus(null)
     try {
-      const result = await parseExcel(file, userFormat || 'carddesk')
-      setAllCards(result.cards)
-      setFileName(file.name)
-      const withPrice = result.cards.filter(c => c.price > 0)
-      setCards(withPrice)
+      const res = await parseInputFile(file, inputSource)
+      const lines = []
+      let format = 'unknown'
+      const genresToReport = inputSource === INPUT_SOURCES.VAULT
+        ? GENRES
+        : Object.keys(res).map(key => GENRE_BY_KEY[key]).filter(Boolean)
 
-      // ゲーム種別でプレースホルダーを自動切り替え
-      const placeholder = result.gameType === 'onepiece'
-        ? './card-back-onepiece.jpg'
-        : './card-back.jpg'
-      updateSettings('placeholderImage', placeholder)
+      for (const g of genresToReport) {
+        const r = res[g.key]
+        if (r && r.format && r.format !== 'unknown') format = r.format  // 検出した投入形式
+        if (r && r.total > 0) {
+          loadGenreCards(g.key, r.cards, `excel:${inputSource}:${file.name}`)
+          lines.push(`${g.label} ${r.total}件`)
+        } else {
+          lines.push(`${g.label} —`)
+        }
+      }
 
-      const formatLabel = result.format === 'tonton' ? 'トントン' : 'CardDesk'
-      const masterInfo = result.format === 'tonton'
-        ? `${result.cards.length}件（画像: ${result.matchedImages}件）`
-        : result.hasMaster
-          ? `マスター: ${result.masterCount}件（画像: ${result.imageCount}件）`
-          : 'ポケモンシートなし（画像なし）'
+      const detectedGenre = Object.entries(res).find(([, result]) => result?.total > 0)?.[0]
+      if (detectedGenre) onGenreDetected?.(detectedGenre)
 
-      setStatus({
-        type: 'success',
-        message: `[${formatLabel}] 読み込み完了 — ${masterInfo} / 買取表: ${result.cards.length}件（価格あり: ${withPrice.length}件, 画像マッチ: ${result.matchedImages}件）`,
-      })
-    } catch (err) {
-      setStatus({ type: 'error', message: err.message })
+      const fmtLabel = inputSource === INPUT_SOURCES.TONTON
+        ? 'とんとん形式'
+        : format === 'new' ? 'Vault新形式(商品ID付き)' : format === 'old' ? 'Vault旧形式' : 'Vault形式不明'
+      setStatus({ type: 'success', message: `［${fmtLabel}］読込完了 ▶ ${lines.join(' / ')}` })
+    } catch (e) {
+      setStatus({ type: 'error', message: e.message })
     } finally {
       setLoading(false)
     }
-  }, [setAllCards, setCards])
+  }, [inputSource, loadGenreCards, onGenreDetected])
 
-  const handleClear = () => {
-    setAllCards([])
-    setCards([])
-    setStatus(null)
-    setFileName(null)
-    if (fileRef.current) fileRef.current.value = ''
-  }
-
-  const handleFile = (e) => processFile(e.target.files[0])
-
-  const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); setDragging(true) }
-  const handleDragLeave = (e) => { e.preventDefault(); e.stopPropagation(); setDragging(false) }
-  const handleDrop = (e) => {
+  const onDrop = (e) => {
     e.preventDefault(); e.stopPropagation(); setDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
-      processFile(file)
-    } else {
-      setStatus({ type: 'error', message: '.xlsx または .xls ファイルをドロップしてください' })
-    }
+    process(e.dataTransfer.files[0])
   }
 
   return (
-    <div className="space-y-3">
-      {/* loaded state */}
-      {allCards.length > 0 && fileName && (
-        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
-          <span className="flex-1 text-xs text-green-700 truncate">{fileName}</span>
-          <button
-            onClick={handleClear}
-            className="text-xs px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 cursor-pointer"
-          >
-            削除
-          </button>
-        </div>
-      )}
-
-      {/* drop zone */}
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#eef1f6] p-1" role="group" aria-label="Excel入力タイプ">
+        {INPUT_SOURCE_OPTIONS.map(option => {
+          const selected = inputSource === option.value
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => selectInputSource(option.value)}
+              className={`rounded-md px-2 py-2 text-left transition-colors ${
+                selected ? 'bg-white text-[#1e3a5f] shadow-sm' : 'text-[#5a6577] hover:bg-white/60'
+              }`}
+            >
+              <span className="block text-[11px] font-semibold">{option.label}</span>
+              <span className="block text-[9px] opacity-75">{option.description}</span>
+            </button>
+          )
+        })}
+      </div>
       <div
-        className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${
-          dragging
-            ? 'border-[#1e3a5f] bg-[#1e3a5f]/10'
-            : allCards.length > 0
-              ? 'border-[#d0d5dd] hover:border-[#1e3a5f] hover:bg-[#f8f9fb]'
-              : 'border-[#d0d5dd] hover:border-[#1e3a5f] hover:bg-[#f8f9fb]'
+        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+          dragging ? 'border-[#1e3a5f] bg-[#1e3a5f]/10' : 'border-[#d0d5dd] hover:border-[#1e3a5f] hover:bg-[#f8f9fb]'
         }`}
         onClick={() => fileRef.current?.click()}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(true) }}
+        onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(false) }}
+        onDrop={onDrop}
       >
-        <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="hidden" />
-        <svg className="mx-auto mb-2" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={dragging ? '#1e3a5f' : '#8c95a4'} strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
+          onChange={(e) => process(e.target.files[0])} />
         <p className="text-sm text-[#5a6577]">
-          {loading ? '読み込み中...' : dragging ? 'ここにドロップ' : allCards.length > 0 ? 'クリックまたはドロップで再読み込み' : 'クリックまたはドラッグ&ドロップ'}
+          {loading ? '読み込み中...' : dragging ? 'ここにドロップ' : 'Excelをクリック / ドラッグ&ドロップ'}
         </p>
         <p className="text-[10px] text-[#8c95a4] mt-1">
-          {userFormat === 'tonton' ? 'トントンフォーマット' : '.xlsx ファイルを読み込み'}
+          {inputSource === INPUT_SOURCES.VAULT
+            ? 'Vault: 1ファイルで5ジャンル一括読み込み'
+            : 'とんとん: ポケモン／ワンピースの単一シート'}
         </p>
       </div>
-
       {status && (
-        <div className={`text-xs px-3 py-2 rounded ${
-          status.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+        <div className={`text-[11px] px-2 py-1.5 rounded border ${
+          status.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
         }`}>
           {status.message}
-        </div>
-      )}
-
-      {allCards.length > 0 && (
-        <div className="text-xs text-[#5a6577] space-y-1">
-          <p>カテゴリ:</p>
-          {Object.entries(
-            allCards.reduce((acc, c) => { acc[c.tag] = (acc[c.tag] || 0) + 1; return acc }, {})
-          ).map(([tag, count]) => (
-            <span key={tag} className="inline-block bg-[#eef1f6] text-[#5a6577] px-2 py-0.5 rounded mr-1 mb-1">{tag}: {count}</span>
-          ))}
         </div>
       )}
     </div>

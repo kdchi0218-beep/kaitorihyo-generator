@@ -1,11 +1,10 @@
-import SettingRow, { SettingToggle } from './SettingRow.jsx'
+import SettingRow, { SettingToggle, StepRange } from './SettingRow.jsx'
 
 export default function PriceSettings({ settings, update }) {
   return (
     <div className="space-y-2">
       <SettingRow label="文字サイズ">
-        <input type="range" min={8} max={48} value={settings.priceFontSize} onChange={e => update('priceFontSize', Number(e.target.value))} />
-        <span className="text-xs text-[#5a6577] w-6">{settings.priceFontSize}</span>
+        <StepRange value={settings.priceFontSize} min={8} max={48} onChange={x => update('priceFontSize', x)} />
       </SettingRow>
       <SettingRow label="文字色">
         <input type="color" value={settings.priceColor} onChange={e => update('priceColor', e.target.value)} />
@@ -29,8 +28,7 @@ export default function PriceSettings({ settings, update }) {
               <input type="text" value={settings.priceStrokeColor} onChange={e => update('priceStrokeColor', e.target.value)} className="w-20" />
             </SettingRow>
             <SettingRow label="外縁幅">
-              <input type="range" min={1} max={6} value={settings.priceStrokeWidth} onChange={e => update('priceStrokeWidth', Number(e.target.value))} />
-              <span className="text-xs text-[#5a6577] w-4">{settings.priceStrokeWidth}</span>
+              <StepRange value={settings.priceStrokeWidth} min={1} max={6} onChange={x => update('priceStrokeWidth', x)} />
             </SettingRow>
           </>
         )}
@@ -47,16 +45,13 @@ export default function PriceSettings({ settings, update }) {
               <input type="text" value={settings.priceBgColor} onChange={e => update('priceBgColor', e.target.value)} className="w-20" />
             </SettingRow>
             <SettingRow label="角丸">
-              <input type="range" min={0} max={20} value={settings.priceBgRadius} onChange={e => update('priceBgRadius', Number(e.target.value))} />
-              <span className="text-xs text-[#5a6577] w-4">{settings.priceBgRadius}</span>
+              <StepRange value={settings.priceBgRadius} min={0} max={20} onChange={x => update('priceBgRadius', x)} />
             </SettingRow>
             <SettingRow label="横余白">
-              <input type="range" min={0} max={40} value={settings.priceBgPaddingX} onChange={e => update('priceBgPaddingX', Number(e.target.value))} />
-              <span className="text-xs text-[#5a6577] w-4">{settings.priceBgPaddingX}</span>
+              <StepRange value={settings.priceBgPaddingX} min={0} max={40} onChange={x => update('priceBgPaddingX', x)} />
             </SettingRow>
             <SettingRow label="縦余白">
-              <input type="range" min={0} max={20} value={settings.priceBgPaddingY} onChange={e => update('priceBgPaddingY', Number(e.target.value))} />
-              <span className="text-xs text-[#5a6577] w-4">{settings.priceBgPaddingY}</span>
+              <StepRange value={settings.priceBgPaddingY} min={0} max={20} onChange={x => update('priceBgPaddingY', x)} />
             </SettingRow>
           </>
         )}
@@ -65,8 +60,7 @@ export default function PriceSettings({ settings, update }) {
       {/* カードとの距離 */}
       <div className="pt-2 border-t border-[#e0e4ea]">
         <SettingRow label="カードとの距離">
-          <input type="range" min={0} max={40} value={settings.priceMarginTop} onChange={e => update('priceMarginTop', Number(e.target.value))} />
-          <span className="text-xs text-[#5a6577] w-4">{settings.priceMarginTop}</span>
+          <StepRange value={settings.priceMarginTop} min={0} max={40} onChange={x => update('priceMarginTop', x)} />
         </SettingRow>
       </div>
 

@@ -1,4 +1,4 @@
-import SettingRow, { SettingToggle } from './SettingRow.jsx'
+import SettingRow, { SettingToggle, StepRange } from './SettingRow.jsx'
 
 export default function GridSettings({ settings, update, userFormat }) {
   const defaultPlaceholder = userFormat === 'tonton' ? './card-back-onepiece.jpg' : './card-back.jpg'
@@ -15,39 +15,31 @@ export default function GridSettings({ settings, update, userFormat }) {
   return (
     <div className="space-y-2">
       <SettingRow label="横（列数）">
-        <input type="range" min={3} max={12} value={settings.gridColumns} onChange={e => update('gridColumns', Number(e.target.value))} />
-        <span className="text-xs text-[#5a6577] w-6">{settings.gridColumns}</span>
+        <StepRange value={settings.gridColumns} min={3} max={12} onChange={x => update('gridColumns', x)} />
       </SettingRow>
       <SettingRow label="縦（行数）">
-        <input type="range" min={1} max={20} value={settings.gridRows} onChange={e => update('gridRows', Number(e.target.value))} />
-        <span className="text-xs text-[#5a6577] w-6">{settings.gridRows}</span>
+        <StepRange value={settings.gridRows} min={1} max={20} onChange={x => update('gridRows', x)} />
       </SettingRow>
       <div className="text-[10px] text-[#8c95a4] text-right">
         {settings.gridColumns} x {settings.gridRows} = 最大 {totalSlots} 枚
       </div>
       <SettingRow label="横の間隔">
-        <input type="range" min={0} max={40} value={settings.gridGapX} onChange={e => update('gridGapX', Number(e.target.value))} />
-        <span className="text-xs text-[#5a6577] w-6">{settings.gridGapX}</span>
+        <StepRange value={settings.gridGapX} min={0} max={40} onChange={x => update('gridGapX', x)} />
       </SettingRow>
       <SettingRow label="縦の間隔">
-        <input type="range" min={0} max={40} value={settings.gridGapY} onChange={e => update('gridGapY', Number(e.target.value))} />
-        <span className="text-xs text-[#5a6577] w-6">{settings.gridGapY}</span>
+        <StepRange value={settings.gridGapY} min={0} max={40} onChange={x => update('gridGapY', x)} />
       </SettingRow>
       <SettingRow label="左右余白">
-        <input type="range" min={0} max={120} value={settings.gridPaddingX} onChange={e => update('gridPaddingX', Number(e.target.value))} />
-        <span className="text-xs text-[#5a6577] w-6">{settings.gridPaddingX}</span>
+        <StepRange value={settings.gridPaddingX} min={0} max={120} onChange={x => update('gridPaddingX', x)} />
       </SettingRow>
       <SettingRow label="上部余白">
-        <input type="range" min={20} max={400} value={settings.gridPaddingTop} onChange={e => update('gridPaddingTop', Number(e.target.value))} />
-        <span className="text-xs text-[#5a6577] w-8">{settings.gridPaddingTop}</span>
+        <StepRange value={settings.gridPaddingTop} min={20} max={400} onChange={x => update('gridPaddingTop', x)} />
       </SettingRow>
       <SettingRow label="カード幅">
-        <input type="range" min={60} max={400} value={settings.cardWidth} onChange={e => update('cardWidth', Number(e.target.value))} />
-        <span className="text-xs text-[#5a6577] w-8">{settings.cardWidth}</span>
+        <StepRange value={settings.cardWidth} min={60} max={400} onChange={x => update('cardWidth', x)} />
       </SettingRow>
       <SettingRow label="カード高さ">
-        <input type="range" min={80} max={560} value={settings.cardHeight} onChange={e => update('cardHeight', Number(e.target.value))} />
-        <span className="text-xs text-[#5a6577] w-8">{settings.cardHeight}</span>
+        <StepRange value={settings.cardHeight} min={80} max={560} onChange={x => update('cardHeight', x)} />
       </SettingRow>
 
       <div className="pt-2 border-t border-[#e0e4ea] space-y-2">

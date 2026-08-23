@@ -1,4 +1,4 @@
-import SettingRow, { SettingToggle } from './SettingRow.jsx'
+import SettingRow, { SettingToggle, StepRange } from './SettingRow.jsx'
 
 export default function CardFrameSettings({ settings, update }) {
   return (
@@ -8,28 +8,14 @@ export default function CardFrameSettings({ settings, update }) {
         <input type="text" value={settings.cardBorderColor} onChange={e => update('cardBorderColor', e.target.value)} className="w-20" />
       </SettingRow>
       <SettingRow label="枠線幅">
-        <input
-          type="range"
-          min={0}
-          max={5}
-          value={settings.cardBorderWidth}
-          onChange={e => update('cardBorderWidth', Number(e.target.value))}
-        />
-        <span className="text-xs text-[#5a6577] w-4">{settings.cardBorderWidth}</span>
+        <StepRange value={settings.cardBorderWidth} min={0} max={5} onChange={x => update('cardBorderWidth', x)} />
       </SettingRow>
       <SettingRow label="背景色">
         <input type="color" value={settings.cardBgColor} onChange={e => update('cardBgColor', e.target.value)} />
         <input type="text" value={settings.cardBgColor} onChange={e => update('cardBgColor', e.target.value)} className="w-20" />
       </SettingRow>
       <SettingRow label="角丸">
-        <input
-          type="range"
-          min={0}
-          max={24}
-          value={settings.cardBorderRadius}
-          onChange={e => update('cardBorderRadius', Number(e.target.value))}
-        />
-        <span className="text-xs text-[#5a6577] w-4">{settings.cardBorderRadius}</span>
+        <StepRange value={settings.cardBorderRadius} min={0} max={24} onChange={x => update('cardBorderRadius', x)} />
       </SettingRow>
       <SettingToggle label="影" checked={settings.cardShadow} onChange={v => update('cardShadow', v)} />
 

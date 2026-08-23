@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/cardrush/product.js": { "maxDuration": 300 },
+    "api/cardrush/products.js": { "maxDuration": 300 },
+    "api/cardrush/search-box.js": { "maxDuration": 300 }
+  },
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}

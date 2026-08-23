@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import SettingRow, { SettingToggle } from './SettingRow.jsx'
+import SettingRow, { SettingToggle, StepRange } from './SettingRow.jsx'
 
 export default function HeaderSettings({ settings, update }) {
   const logoRef = useRef()
@@ -27,14 +27,7 @@ export default function HeaderSettings({ settings, update }) {
             />
           </SettingRow>
           <SettingRow label="文字サイズ">
-            <input
-              type="range"
-              min={20}
-              max={120}
-              value={settings.headerFontSize}
-              onChange={e => update('headerFontSize', Number(e.target.value))}
-            />
-            <span className="text-xs text-[#5a6577] w-8">{settings.headerFontSize}</span>
+            <StepRange value={settings.headerFontSize} min={20} max={120} onChange={x => update('headerFontSize', x)} />
           </SettingRow>
           <SettingRow label="文字色">
             <input type="color" value={settings.headerColor} onChange={e => update('headerColor', e.target.value)} />
@@ -71,14 +64,7 @@ export default function HeaderSettings({ settings, update }) {
               <>
                 <img src={settings.logoImage} alt="ロゴ" className="mt-2 max-h-12 rounded" />
                 <SettingRow label="ロゴサイズ">
-                  <input
-                    type="range"
-                    min={30}
-                    max={200}
-                    value={settings.logoSize}
-                    onChange={e => update('logoSize', Number(e.target.value))}
-                  />
-                  <span className="text-xs text-[#5a6577] w-8">{settings.logoSize}</span>
+                  <StepRange value={settings.logoSize} min={30} max={200} onChange={x => update('logoSize', x)} />
                 </SettingRow>
                 <SettingRow label="位置">
                   <select value={settings.logoPosition} onChange={e => update('logoPosition', e.target.value)}>

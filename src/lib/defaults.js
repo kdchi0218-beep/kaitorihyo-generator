@@ -1,4 +1,11 @@
 export const DEFAULT_SETTINGS = {
+  // Pricing rule (納品希望価格 → 表示価格)
+  ratePercent: 0,        // 基本の掛け率（金額帯に該当しない時）
+  priceFlatAdjust: 0,    // 基本の定額調整（円・正負）
+  priceTiers: [],        // 金額帯ルール [{min,max,ratePercent,flatAdjust}]
+  priceUnit: 100,        // 端数調整の単位
+  priceRounding: 'ceil', // ceil / round / floor
+
   // Canvas
   canvasWidth: 1080,
   canvasHeight: 1350,
@@ -41,11 +48,41 @@ export const DEFAULT_SETTINGS = {
   psaBadgeTextColor: '#ffffff',
   psaBadgeSize: 24,
 
+  // Rarity overlay (遊戯王のみ・rarity列をカードにオーバーレイ)
+  showRarityOverlay: false,
+  rarityOverlayPosition: 'top-left', // top-left/top-right/bottom-left/bottom-right
+  rarityOverlayOffsetX: 4,
+  rarityOverlayOffsetY: 4,
+  rarityOverlayFontSize: 10,
+  rarityOverlayColor: '#ffffff',
+  rarityOverlayBgEnabled: true,
+  rarityOverlayBgColor: '#b8860b',
+  rarityOverlayRadius: 4,
+  rarityAliases: {}, // { "20thシークレット": "SE", ... } レアリティ→略称
+  rarityHidden: {},  // { "ノーマル": true, ... } true のレアリティはオーバーレイ非表示
+
   // Card name
   showCardName: true,
   cardNameFontSize: 9,
   cardNameColor: '#cccccc',
   cardNameLines: 1,
+  cardNameBgEnabled: false,
+  cardNameBgColor: '#000000',
+  cardNameBgFullWidth: false,
+  cardNameBgRadius: 4,
+  cardNameBgPaddingX: 6,
+  cardNameBgPaddingY: 2,
+
+  // List No (型番)
+  showListNo: false,
+  listNoFontSize: 8,
+  listNoColor: '#9aa3b0',
+  listNoBgEnabled: false,
+  listNoBgColor: '#000000',
+  listNoMarginTop: 1,     // 上余白（カード名との距離）
+  listNoMarginBottom: 0,  // 下余白
+  listNoBgPaddingX: 5,    // 横余白
+  listNoBgPaddingY: 1,    // 縦余白
 
   // Price
   priceFontSize: 14,
@@ -76,48 +113,17 @@ export const DEFAULT_SETTINGS = {
   updateDateColor: '#888888',
   updateDateAlign: 'right', // left, center, right
   updateDatePosition: 'bottom', // top, bottom
+  updateDateBgEnabled: false,
+  updateDateBgColor: '#000000',
+  updateDateFreePos: false, // true で px 単位の自由配置
+  updateDateX: 20,
+  updateDateY: 20,
 
   // Footer
   footerText: 'カードの傷およびケース傷、カード在庫状況等による増減がございますので予めご了承ください',
   footerFontSize: 10,
   footerColor: '#888888',
   footerShow: true,
+  footerBgEnabled: false,
+  footerBgColor: '#000000',
 }
-
-export const TEMPLATE_PRESETS = [
-  {
-    name: 'ダーク×ゴールド',
-    settings: {
-      bgColor: '#1a1a2e',
-      headerColor: '#ffd700',
-      priceColor: '#ffffff',
-      cardBgColor: '#2a2a3e',
-      cardBorderColor: '#333333',
-      psaBadgeColor: '#ff0000',
-    }
-  },
-  {
-    name: 'ホワイト×ブルー',
-    settings: {
-      bgColor: '#f0f4f8',
-      headerColor: '#1e40af',
-      priceColor: '#1e293b',
-      cardBgColor: '#ffffff',
-      cardBorderColor: '#cbd5e1',
-      psaBadgeColor: '#2563eb',
-      cardNameColor: '#475569',
-      footerColor: '#64748b',
-    }
-  },
-  {
-    name: 'ブラック×レッド',
-    settings: {
-      bgColor: '#0a0a0a',
-      headerColor: '#ef4444',
-      priceColor: '#fbbf24',
-      cardBgColor: '#1c1c1c',
-      cardBorderColor: '#ef4444',
-      psaBadgeColor: '#ef4444',
-    }
-  },
-]
