@@ -1,122 +1,110 @@
-# とんとん 買取表ジェネレーター — 開発・デプロイ手順
+# とんとん 買取表ジェネレーター — 運用・デプロイ手順
 
-## 概要
-- 元のとんとん版を統合版として運用し、Vault形式の入力にも対応する
-- **とんとん形式**: ポケモン・ワンピースの単一シート（初期選択） / **Vault形式**: 5ジャンル一括
-- `🐽トントン_買取表管理_v2` のCardRush取得先も同じVercel Functionsへ集約
-- 認証・設定同期は **Supabase**、ホスティングは **Vercel**
-- `vault-kaitori-generator.vercel.app` はVault専用版のまま、このアプリとは別管理にする
+## 構成
 
-## インフラ情報
-| 項目 | 値 |
-|---|---|
-| 本番URL（予定） | https://tonton-kaitori-generator.vercel.app |
-| GitHub | kdchi0218-beep/kaitorihyo-generator (private) |
-| Git管理ローカル | ~/Documents/案件系/とんとん総合版ジェネレーター |
-| Supabase | とんとん専用プロジェクト（Tokyo／Vaultと分離） |
+- とんとん形式（単一シート）と Vault形式（5ジャンル一括）をこのアプリで扱う。Vault専用の `vault-kaitori-generator.vercel.app` は変更しない。
+- 本番: `https://tonton-kaitori-generator.vercel.app`
+- ホスティング/BFF: Vercel、データ: とんとん専用Supabase（Tokyo）。VaultとSupabaseプロジェクトを共有しない。
+- ブラウザはSupabaseへ直接アクセスしない。ログイン、全データCRUD、画像取得は同一オリジンのVercel BFF（`/api/*`）経由。
 
-## 必須ランタイム・環境変数
+## ブラウザ固定（必ず守る運用）
 
-- Node.js `22.17.0` 以上
-- フロント公開値: `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY`
-- Vercelサーバー専用: `SUPABASE_URL` / `SUPABASE_SECRET_KEY`
-- スクレイピング専用: `SCRAPER_API_KEY`（十分に長いランダム値）
-- Chromium: `CHROMIUM_PACK_URL`（Chromium 149のarm64 packを置いたHTTPS URL）
+最初にパスワードでログインしたブラウザが、そのアカウントの利用ブラウザとして固定されます。同じブラウザでは再ログインできますが、別ブラウザ・別ブラウザプロフィール・Cookie削除・PC交換後はログインできません。
 
-`SUPABASE_SECRET_KEY`、`SCRAPER_API_KEY` は `VITE_` を付けず、クライアントへ公開しないこと。
+- 変更が必要なときは、管理画面の対象ユーザーで **「ブラウザ登録を解除」** を実行する。次回のパスワードログインで新しいブラウザへ固定される。
+- 管理者自身の解除は、**別の管理者**が行う。管理者を最低2人登録しておく（1人だけにしない）。
+- 緊急時に全管理者が入れない場合のみ、Supabase Dashboard → SQL Editorで対象ユーザーの有効な `browser_bindings` を `revoked_at` 付きで解除する。理由と実行者を `browser_binding_events` に残し、復旧直後に別の管理者を追加する。RLSの無効化、鍵の共有、テーブル削除はしない。
 
-## ローカル開発
-```bash
-cd ~/Documents/案件系/とんとん総合版ジェネレーター
-npm install        # 初回のみ（node_modules）
-npm run dev        # ローカルプレビュー（http://localhost:5173）
-                   # ※ /api/* (スプシ取得・招待・画像プロキシ) はローカルでは動かない。本番でのみ動作
+```sql
+update public.browser_bindings
+set revoked_at = now(),
+    revoked_by = (select id from auth.users where lower(email) = lower('<作業管理者メール>')),
+    revocation_reason = '緊急解除: <理由>'
+where user_id = (select id from auth.users where lower(email) = lower('<対象メール>'))
+  and revoked_at is null;
 ```
 
-## デプロイ手順（これだけ）
-```bash
-cd ~/Documents/案件系/とんとん総合版ジェネレーター
-npm run lint
-npm test
-npm run build                              # ビルド確認（エラーが無いこと）
-git add <変更したファイル>                    # 無関係な未追跡ファイルは追加しない
-git commit -m "変更内容"
-git push origin main                       # → Vercelが自動デプロイ（1〜2分）
-```
-反映確認: 1〜2分後に本番URLを Cmd+Shift+R（強制再読み込み）。
+セッションJWTとブラウザ秘密値は `HttpOnly` Cookieだけに保管され、画面のJavaScript・localStorage・スプレッドシートには置かれません。
 
-## ⚠️ 重要な注意点（ハマりどころ）
-1. **コミットauthorは `k.dchi0218@gmail.com` 固定**（git config設定済み）。
-   GitHubアカウントと一致しないメールでコミットすると **Vercelがデプロイをブロック**する（"commit author email is not your Git account"）。
-   → `git config user.email` が `k.dchi0218@gmail.com` であることを確認。
-2. **Supabaseの初期化**は `supabase/migrations/` を古いタイムスタンプ順に適用する。
-   店舗データはRLSで管理者または所属店舗だけに限定し、`scrape_cache` はservice_role専用。
-3. **鍵は `.env.local`（gitignore済み・絶対コミットしない）**。
-   スクレイピング用の2変数もVercelのProduction/Previewへ設定する。
-4. **招待メール**を使うには Supabase → Authentication → URL Configuration の Site URL / Redirect URLs に本番URLを設定。
+## 環境変数
 
-## Supabase初回管理者の作成
+| 種別 | 変数 | 設定先 |
+|---|---|---|
+| 公開ビルド値 | `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` | Vercel Production/Preview/Development |
+| サーバー専用 | `SUPABASE_URL` / `SUPABASE_SECRET_KEY` | **Productionのみ** |
+| GAS連携 | `SCRAPER_API_KEY` | Production/Preview（十分に長いランダム値） |
+| CardRushブラウザ取得 | `CHROMIUM_PACK_URL` | Chromium 149 **x86_64** packのHTTPS URL |
 
-`app_admins` はアプリ経由で自分自身を管理者にできない設計。初回だけSupabase Dashboardで次の順に作業する。
+`SUPABASE_SECRET_KEY` は絶対に `VITE_` を付けない。本番Supabaseの秘密鍵をPreviewへ設定しないこと。Previewは本番Supabaseを共有せず、必要なら専用の検証用Supabaseと鍵を使う。
 
-1. Authentication → Users で管理者ユーザーを作成または招待する。
-2. ユーザーのメールアドレスを確認してから、SQL Editorで次を実行する（UUIDを手入力しない）。
+## 初回セットアップ
+
+1. Supabaseのmigrationを次の順に適用する。
+
+   1. `20260822000000_create_tonton_app_schema.sql`
+   2. `20260823000000_create_scrape_cache.sql`
+   3. `20260823001000_lock_down_scrape_cache.sql`
+   4. `20260823002000_harden_tonton_schema.sql`
+   5. `20260823105529_add_browser_binding.sql`
+
+2. Supabase Dashboard → Authentication → Users で最初の管理者を作り、SQL Editorで管理者権限を付与する。
 
 ```sql
 insert into public.app_admins (user_id)
-select id
-from auth.users
+select id from auth.users
 where lower(email) = lower('<管理者メールアドレス>')
 on conflict (user_id) do nothing;
 ```
 
-3. 次の確認SQLが1件を返すことを確認する。
+3. 最初の管理者でログインし、すぐに2人目の管理者を用意する。一般ユーザーは管理画面から作成し、**12文字以上の初期パスワード**を設定する。招待メール方式は使わない。
 
-```sql
-select a.user_id, u.email
-from public.app_admins as a
-join auth.users as u on u.id = a.user_id
-where lower(u.email) = lower('<管理者メールアドレス>');
+## ローカル開発
+
+```bash
+cd ~/Documents/案件系/とんとん総合版ジェネレーター
+npm install
+npm run dev
 ```
 
-4. アプリへ管理者でログインし、店舗を1件作成できることを確認する。続いて一般ユーザーでは管理APIが403になり、所属外店舗を取得できないことを確認する。
+Viteだけの `npm run dev` では `/api/*` は動きません。ログイン、データ同期、画像、CardRush/GAS連携を確認する場合はVercelのPreviewまたは本番相当環境で確認する。
 
-初期設定のためにRLSを無効化したり、`app_admins` へのauthenticated INSERT権限を付与したりしないこと。
+## デプロイ
+
+```bash
+npm run lint
+npm test
+npm run build
+git add <変更したファイル>
+git commit -m "変更内容"
+git push origin main
+```
+
+Vercel反映後、強制再読み込みして、ログイン・ブラウザ固定・店舗データ保存・private画像表示を確認する。旧フロントを開いたまま新BFF/RLS migrationを先に適用すると旧版はデータを読めなくなるため、メンテナンス時間を取り、利用者へ再読み込みを案内してから切り替える。
 
 ## 🐽トントン_買取表管理_v2 の切替
 
-GASソースは `~/Desktop/【codex】Mycompany-v2/.secretary/gas/kaitori/sheet-manager-v2.gs`。本番反映後、Apps ScriptのScript Propertiesへ次を設定する。
+GAS: `~/Desktop/【codex】Mycompany-v2/.secretary/gas/kaitori/sheet-manager-v2.gs`
 
 | Property | 値 |
 |---|---|
 | `CARD_RUSH_PROXY_URL` | `https://<Vercel本番ドメイン>/api/cardrush` |
-| `SCRAPER_API_KEY` | Vercelの同名環境変数と同じ値 |
+| `SCRAPER_API_KEY` | Vercel Productionの同名値 |
 
-未設定時は旧 `app.card-desk.com` へフォールバックする。障害時は `CARD_RUSH_PROXY_URL` を削除すれば旧取得先へ戻せる。鍵はGASソースやスプレッドシートのセルへ記載しない。
+切替後、ポケモン・ワンピース・BOXを各1件手動確認してから自動トリガーを有効にする。障害時は `CARD_RUSH_PROXY_URL` を削除して旧取得先へ戻せる。鍵をGASコードやセルに書かない。
 
-切替後は、スプシからポケモン1件・ワンピース1件・BOX検索1件を手動取得し、価格・画像・商品URLを確認してから自動トリガーを有効にする。
+## 構成ファイル
 
-## Vercel CLIで直接デプロイ（自動デプロイが詰まった時の保険）
-```bash
-export VERCEL_TOKEN=<トークン>
-npx vercel@latest build --prod --yes --token "$VERCEL_TOKEN"
-npx vercel@latest deploy --prebuilt --prod --yes --token "$VERCEL_TOKEN"
-```
-※ 環境によってはアップロードが詰まることがある。基本は git push 自動デプロイを使う。
-
-## 構成ファイルの場所
-| 何を直すか | ファイル |
+| 対象 | ファイル |
 |---|---|
-| 5ジャンル定義・裏面画像 | `src/lib/genres.js` |
-| 価格ロジック（掛け率/定額/端数） | `src/lib/pricing.js` |
-| 2入力タイプ切替 | `src/lib/inputSources.js` / `src/components/ExcelUploader.jsx` |
-| Excel取り込み | `src/lib/excelSource.js` / `src/lib/vaultParser.js` / `src/lib/tontonParser.js` |
-| 買取表の見た目（プレビュー） | `src/components/Preview.jsx` |
-| カード選択UI | `src/components/CardSelector.jsx` |
-| 各種設定パネル | `src/components/settings/*.jsx` |
-| 店舗・ユーザー管理画面 | `src/components/AdminPanel.jsx` |
-| Supabase連携 | `src/lib/supabase.js` / `src/lib/storeSync.js` |
+| 入力タイプ・Excel解析 | `src/lib/inputSources.js` / `src/lib/excelSource.js` / `src/lib/vaultParser.js` / `src/lib/tontonParser.js` |
+| 店舗データCRUD（BFF） | `src/lib/apiClient.js` / `src/lib/storeSync.js` / `api/data.js` |
+| ログイン・Cookieセッション | `src/lib/authApi.js` / `api/auth/*.js` / `api/_lib/browser-session.js` |
+| ブラウザ固定の管理 | `src/lib/browserAdmin.js` / `src/components/AdminPanel.jsx` / `api/admin/browser-users.js` |
+| 管理者によるユーザー作成 | `api/admin/create-user.js` |
+| private画像の配信 | `api/asset.js`（`store-assets` はprivate） |
 | CardRush API | `api/cardrush/*.js` / `api/_lib/cardrush-*.js` |
-| Supabaseキャッシュ | `api/_lib/scrape-cache.js` / `supabase/migrations/*.sql` |
-| その他サーバー関数 | `api/sheet.js` / `api/admin/create-user.js` / `api/image-proxy.js` |
-| 裏面画像 | `public/card-back*.jpg` |
+| Supabase schema/RLS | `supabase/migrations/*.sql` |
+
+旧 `src/lib/supabase.js` は廃止済み。新しい画面側の接続は `src/lib/apiClient.js` と `src/lib/authApi.js` を使う。
+
+最終更新: 2026-08-23

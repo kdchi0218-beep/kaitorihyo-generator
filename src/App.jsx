@@ -3,16 +3,11 @@ import Login from './components/Login.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import Preview from './components/Preview.jsx'
 import AdminPanel from './components/AdminPanel.jsx'
-import SetPassword from './components/SetPassword.jsx'
 import { DEFAULT_SETTINGS } from './lib/defaults.js'
 import { GENRES, GENRE_BY_KEY } from './lib/genres.js'
 import { computeDisplayPrice } from './lib/pricing.js'
-import { supabase } from './lib/supabase.js'
+import { authApi } from './lib/authApi.js'
 import { checkIsAdmin, listMyStores, listAllStores, loadStoreSettings, saveStoreSettings } from './lib/storeSync.js'
-
-// 招待/復旧リンクから着地したか（supabaseがhashを消す前に捕捉）
-const INITIAL_HASH = typeof window !== 'undefined' ? window.location.hash : ''
-const IS_INVITE_LANDING = /type=(invite|recovery)/.test(INITIAL_HASH)
 
 function emptyGenreData() {
   const obj = {}
@@ -95,15 +90,17 @@ function App() {
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setAuthLoading(false) })
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
-    return () => sub.subscription.unsubscribe()
+    let active = true
+    authApi.getSession()
+      .then(value => { if (active) setSession(value) })
+      .catch(() => { if (active) setSession(null) })
+      .finally(() => { if (active) setAuthLoading(false) })
+    const invalidate = () => setSession(null)
+    window.addEventListener('tonton-auth-invalid', invalidate)
+    return () => { active = false; window.removeEventListener('tonton-auth-invalid', invalidate) }
   }, [])
   const authed = !!session
   const userEmail = session?.user?.email || ''
-
-  // 招待リンク着地時の初回パスワード設定
-  const [needPassword, setNeedPassword] = useState(IS_INVITE_LANDING)
 
   // ---- 店舗 ----
   const [stores, setStores] = useState([])
@@ -281,7 +278,14 @@ function App() {
     setGenreData(prev => ({ ...prev, [activeGenre]: { ...prev[activeGenre], allCards: [], selected: [] } }))
   }
 
-  const handleLogout = async () => { await supabase.auth.signOut() }
+  const handleLogout = async () => {
+    try { await authApi.logout() } finally {
+      setSession(null)
+      setStores([])
+      setAllStores([])
+      setActiveStoreId(null)
+    }
+  }
 
   const genreMeta = useMemo(() => {
     const m = {}
@@ -294,17 +298,7 @@ function App() {
 
   // ---- 画面分岐 ----
   if (authLoading) return <Loading />
-  if (!authed) return <Login />
-
-  // 招待リンクで来た場合は初回パスワード設定を先に
-  if (needPassword) {
-    return (
-      <SetPassword
-        email={userEmail}
-        onDone={() => { setNeedPassword(false); if (typeof window !== 'undefined') window.location.hash = '' }}
-      />
-    )
-  }
+  if (!authed) return <Login onLogin={value => setSession(value)} />
 
   if (storesLoading) return <Loading text="店舗を読み込み中..." />
 

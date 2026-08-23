@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase.js'
+import { authApi } from '../lib/authApi.js'
 
-export default function Login() {
+export default function Login({ onLogin }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -11,14 +11,19 @@ export default function Login() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
-    if (error) {
-      setError(error.message === 'Invalid login credentials'
-        ? 'メールアドレスまたはパスワードが正しくありません'
-        : error.message)
+    try {
+      const result = await authApi.login(email, password)
+      onLogin(result)
+    } catch (error) {
+      if (error.code === 'BROWSER_LOCKED') {
+        setError('このアカウントは別のブラウザに固定されています。管理者に「ブラウザ登録の解除」を依頼してください。')
+      } else {
+        setError(error.code === 'INVALID_CREDENTIALS'
+          ? 'メールアドレスまたはパスワードが正しくありません'
+          : error.message)
+      }
       setLoading(false)
     }
-    // 成功時は onAuthStateChange が発火し App が自動で切り替わる
   }
 
   return (
@@ -37,7 +42,7 @@ export default function Login() {
           とんとん 買取表ジェネレーター
         </h1>
         <p style={{ fontSize: '13px', color: '#999', textAlign: 'center', marginBottom: '28px' }}>
-          店舗アカウントでログイン
+          店舗アカウントでログイン（初回ブラウザ固定）
         </p>
 
         {error && (

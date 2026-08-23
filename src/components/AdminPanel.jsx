@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createStore, deleteStore, createUserInStore } from '../lib/storeSync.js'
+import { browserAdminApi } from '../lib/browserAdmin.js'
 
 function genPassword() {
   const a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
@@ -17,8 +18,19 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
   const [memberForms, setMemberForms] = useState({}) // { storeId: {email} }
+  const [browserUsers, setBrowserUsers] = useState([])
+  const [browserLoading, setBrowserLoading] = useState(true)
 
   const note = (type, message) => setMsg({ type, message })
+
+  const loadBrowserUsers = useCallback(async () => {
+    setBrowserLoading(true)
+    try { setBrowserUsers(await browserAdminApi.list()) }
+    catch (error) { note('error', error.message) }
+    finally { setBrowserLoading(false) }
+  }, [])
+
+  useEffect(() => { loadBrowserUsers() }, [loadBrowserUsers])
 
   const handleAddStore = async () => {
     if (!newStoreName.trim()) return
@@ -49,8 +61,30 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
       await createUserInStore({ email: form.email.trim(), password: form.password, storeId })
       note('success', `${storeName} に発行しました ▶ ID: ${form.email.trim()} / PW: ${form.password}（このID・パスワードを店舗に伝えてください）`)
       setForm(storeId, { email: '', password: '' })
+      await loadBrowserUsers()
     } catch (e) { note('error', e.message) } finally { setBusy(false) }
   }
+
+  const handleResetBrowser = async (user) => {
+    if (user.email === userEmail) {
+      note('error', '現在ログイン中の管理者自身は解除できません。別の管理者から解除してください。')
+      return
+    }
+    const reason = prompt(`${user.email} のブラウザ登録を解除する理由を入力してください`, 'PC交換・ブラウザ変更')
+    if (!reason?.trim()) return
+    if (!confirm(`${user.email} のブラウザ固定を解除しますか？\n解除後は、次にログインしたブラウザへ固定されます。`)) return
+    setBusy(true); setMsg(null)
+    try {
+      await browserAdminApi.reset(user.id, reason.trim())
+      await loadBrowserUsers()
+      note('success', `${user.email} のブラウザ登録を解除しました`)
+    } catch (error) { note('error', error.message) }
+    finally { setBusy(false) }
+  }
+
+  const formatDate = value => value
+    ? new Intl.DateTimeFormat('ja-JP', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
+    : '—'
 
   return (
     <div style={{ minHeight: '100vh', width: '100vw', background: '#eef1f6', overflow: 'auto' }}>
@@ -125,6 +159,55 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
             </div>
           )
         })}
+
+        <div className="bg-white rounded-xl border border-[#e0e4ea] p-4 mt-5 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-sm font-bold text-[#1e3a5f]">ブラウザ固定の管理</h2>
+              <p className="text-[10px] text-[#8c95a4] mt-1">初回ログインしたブラウザだけ利用できます。PC交換時はここで登録を解除してください。</p>
+            </div>
+            <button onClick={loadBrowserUsers} disabled={browserLoading || busy}
+              className="text-[11px] px-3 py-1.5 rounded border border-[#d0d5dd] text-[#5a6577] cursor-pointer disabled:opacity-60">
+              再読込
+            </button>
+          </div>
+
+          {browserLoading ? (
+            <p className="text-xs text-[#8c95a4] py-4 text-center">ユーザーを読み込み中...</p>
+          ) : browserUsers.length === 0 ? (
+            <p className="text-xs text-[#8c95a4] py-4 text-center">ユーザーがまだありません。</p>
+          ) : (
+            <div className="divide-y divide-[#edf0f4]">
+              {browserUsers.map(user => (
+                <div key={user.id} className="py-3 flex flex-wrap items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold text-[#1e3a5f] truncate">
+                      {user.email}
+                      {user.isAdmin && <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">管理者</span>}
+                      {user.email === userEmail && <span className="ml-2 text-[9px] text-[#8c95a4]">現在のアカウント</span>}
+                    </div>
+                    <div className="text-[10px] text-[#8c95a4] mt-1">
+                      {user.stores.length ? user.stores.join('・') : (user.isAdmin ? '全店舗' : '店舗未割当')}
+                      {' / '}
+                      {user.browser.bound
+                        ? `固定済み（登録 ${formatDate(user.browser.boundAt)}・最終利用 ${formatDate(user.browser.lastSeenAt)}）`
+                        : '未登録（次の初回ログインで固定）'}
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-semibold ${user.browser.bound ? 'text-green-700' : 'text-amber-600'}`}>
+                    {user.browser.bound ? '● 固定済み' : '○ 未登録'}
+                  </span>
+                  <button
+                    onClick={() => handleResetBrowser(user)}
+                    disabled={busy || !user.browser.bound || user.email === userEmail}
+                    title={user.email === userEmail ? '別の管理者から解除してください' : ''}
+                    className="text-[11px] px-3 py-1.5 rounded border border-red-200 text-red-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >ブラウザ登録を解除</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

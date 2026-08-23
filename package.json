@@ -15,7 +15,6 @@
   },
   "dependencies": {
     "@sparticuz/chromium-min": "149.0.0",
-    "@supabase/supabase-js": "2.106.2",
     "@tailwindcss/vite": "^4.2.2",
     "html-to-image": "^1.11.13",
     "jszip": "^3.10.1",
