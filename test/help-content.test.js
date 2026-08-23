@@ -64,6 +64,21 @@ test('使い方: 画面内ヘルプから詳細手順書を開ける', async () 
   assert.match(source, /詳細手順書を別タブで開く/)
 })
 
+test('使い方: PCでも小さすぎない文字と整理されたレイアウトで表示する', async () => {
+  const source = await readFile(new URL('../src/components/HelpGuide.jsx', import.meta.url), 'utf8')
+  const dialogSource = source.slice(source.indexOf('role="dialog"'))
+
+  assert.match(dialogSource, /max-w-\[1040px\]/)
+  assert.match(dialogSource, /max-h-\[92svh\]/)
+  assert.match(dialogSource, /min-h-0/)
+  assert.match(dialogSource, /lg:grid-cols-2/)
+  assert.match(dialogSource, /<details/)
+  assert.match(dialogSource, /<summary/)
+  assert.match(source, /summary, a\[href\]/)
+  assert.match(source, /dialogRef\.current\?\.focus\(\{ preventScroll: true \}\)/)
+  assert.doesNotMatch(dialogSource, /text-\[(?:10|11)px\]/)
+})
+
 test('使い方: 利用者向け手順書もパワン形式へ統一する', async () => {
   const usage = await readFile(new URL('../docs/USAGE.md', import.meta.url), 'utf8')
   const help = HELP_GUIDE.flatMap(section => section.items).join('\n')
