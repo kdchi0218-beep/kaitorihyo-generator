@@ -1,4 +1,8 @@
 {
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
   "functions": {
     "api/cardrush/product.js": { "maxDuration": 300 },
     "api/cardrush/products.js": { "maxDuration": 300 },
