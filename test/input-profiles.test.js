@@ -55,13 +55,32 @@ test('リスト機能: パワン形式でだけ有効にする', async () => {
     readFile(new URL('../docs/USAGE.md', import.meta.url), 'utf8'),
   ])
 
-  assert.match(app, /const \[inputSource, setInputSource\]/)
-  assert.match(sidebar, /supportsRegularLists\(inputSource\)/)
+  assert.match(app, /inputSource: loadedInputSource/)
+  assert.match(sidebar, /supportsRegularLists\(loadedInputSource\)/)
   assert.match(sidebar, /listEnabled &&/)
   assert.match(sidebar, /listedKeys=\{listEnabled \? listedKeys : null\}/)
-  assert.match(uploader, /inputSource, onInputSourceChange/)
+  assert.match(uploader, /loadedInputSource/)
+  assert.match(uploader, /onImportComplete/)
   assert.match(help, /定番リスト[^。]*パワン形式|パワン形式[^。]*定番リスト/)
   assert.match(usage, /定番リスト[^。\n]*パワン形式|パワン形式[^。\n]*定番リスト/)
+})
+
+test('入力モード: とんとんと1ジャンル、パワンと5ジャンルを同じ選択中状態に混ぜない', async () => {
+  const [app, sidebar, tabs, uploader] = await Promise.all([
+    readFile(new URL('../src/App.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/Sidebar.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/GenreTabs.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/ExcelUploader.jsx', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(app, /applyImportedWorkspace\(prev\.workspace/)
+  assert.match(app, /visibleGenreKeys=\{visibleGenreKeys\}/)
+  assert.match(app, /workspaceState\.storeId !== activeStoreId/)
+  assert.match(sidebar, /visibleGenreKeys=\{visibleGenreKeys\}/)
+  assert.match(sidebar, /\{listEnabled && \(\s*<details/)
+  assert.match(tabs, /GENRES\.filter\(\(\{ key \}\) => visible\.has\(key\)\)/)
+  assert.equal((uploader.match(/onImportComplete\(\{/g) || []).length, 1)
+  assert.doesNotMatch(uploader, /loadGenreCards\(/)
 })
 
 test('データ取得: スプシURL取得を画面と利用者向け案内から除外する', async () => {
@@ -167,6 +186,30 @@ test('入力切替: パワン形式は既存の5ジャンル一括取込を維�
   assert.equal(result.pokemon.cards.length, 1)
   assert.equal(result.pokemon.inputSource, INPUT_SOURCES.VAULT)
   assert.equal(result.onepiece.notFound, true)
+})
+
+test('入力切替: パワンの対応シートが1つも無いファイルは読込成功にしない', async () => {
+  const invalidFile = {
+    arrayBuffer: async () => new TextEncoder().encode('not an xlsx').buffer,
+  }
+
+  await assert.rejects(
+    () => parseInputFile(invalidFile, INPUT_SOURCES.VAULT),
+    /シート|パワン/,
+  )
+})
+
+test('入力切替: パワンの対応シートが全て解析エラーなら現在データを置換しない', async () => {
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+    ['関係のない列'],
+    ['無効なデータ'],
+  ]), 'ポケモン')
+
+  await assert.rejects(
+    () => parseInputFile(writeFile(workbook), INPUT_SOURCES.VAULT),
+    /ヘッダー|パワン/,
+  )
 })
 
 test('入力切替: 未知の入力タイプは受け付けない', async () => {

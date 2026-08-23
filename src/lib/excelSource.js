@@ -35,6 +35,9 @@ export async function parseExcelAllGenres(file) {
   const buf = await file.arrayBuffer()
   const wb = XLSX.read(new Uint8Array(buf), { type: 'array' })
   const out = {}
+  let matchedSheetCount = 0
+  let parsedSheetCount = 0
+  const parseErrors = []
 
   for (const g of GENRES) {
     // シート名を sheetHint / sheetHintsExtra で検索（完全一致 → 部分一致）
@@ -44,6 +47,7 @@ export async function parseExcelAllGenres(file) {
       out[g.key] = { cards: [], total: 0, withPrice: 0, withImage: 0, notFound: true }
       continue
     }
+    matchedSheetCount += 1
 
     const ws = wb.Sheets[name]
     const raw = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' })
@@ -51,9 +55,22 @@ export async function parseExcelAllGenres(file) {
     const format = detectFormat(rows[0])   // 'new' | 'old' | 'unknown'（UI表示用）
     try {
       out[g.key] = { ...parseVaultRows(rows, g.key), format }
+      parsedSheetCount += 1
     } catch (e) {
       out[g.key] = { cards: [], total: 0, withPrice: 0, withImage: 0, error: e.message, format }
+      parseErrors.push(e.message)
     }
+  }
+
+  // xlsxライブラリは単なるテキストでもSheet1のワークブックとして読める。
+  // その状態を5ジャンル全0件の正常取込と扱うと既存データを消すため、
+  // 対応シートが無い、または対応シートを1枚も解析できない場合は取込失敗にする。
+  if (matchedSheetCount === 0) {
+    throw new Error('パワン形式の対応ジャンルシートが見つかりません')
+  }
+  if (parsedSheetCount === 0) {
+    const detail = parseErrors[0] ? `: ${parseErrors[0]}` : ''
+    throw new Error(`パワン形式のシートを解析できません${detail}`)
   }
   return out
 }

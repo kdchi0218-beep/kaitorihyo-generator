@@ -1,9 +1,11 @@
 import { GENRES } from '../lib/genres.js'
 
-export default function GenreTabs({ activeGenre, setActiveGenre, genreMeta }) {
+export default function GenreTabs({ activeGenre, setActiveGenre, genreMeta, visibleGenreKeys }) {
+  const visible = new Set(visibleGenreKeys || GENRES.map(({ key }) => key))
+
   return (
     <div className="flex flex-wrap gap-1">
-      {GENRES.map(g => {
+      {GENRES.filter(({ key }) => visible.has(key)).map(g => {
         const meta = genreMeta[g.key] || { total: 0, selected: 0 }
         const isActive = g.key === activeGenre
         return (

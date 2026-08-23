@@ -8,13 +8,15 @@ import { GENRES, GENRE_BY_KEY } from './lib/genres.js'
 import { computeDisplayPrice } from './lib/pricing.js'
 import { authApi } from './lib/authApi.js'
 import { checkIsAdmin, listMyStores, listAllStores, loadStoreSettings, saveStoreSettings } from './lib/storeSync.js'
-import { normalizeInputSource } from './lib/inputSources.js'
-
-function emptyGenreData() {
-  const obj = {}
-  for (const g of GENRES) obj[g.key] = { allCards: [], selected: [], sheetUrl: '', loadedAt: null }
-  return obj
-}
+import { INPUT_SOURCES, normalizeInputSource } from './lib/inputSources.js'
+import {
+  applyImportedWorkspace,
+  clearActiveWorkspaceGenre,
+  createEmptyInputWorkspace,
+  hydrateInputWorkspace,
+  replaceWorkspaceGenre,
+  setWorkspaceActiveGenre,
+} from './lib/inputModeState.js'
 
 // 価格設定を全カードに反映して price を再計算
 // 手動で価格入力したカード（priceManual）は上書きしない
@@ -184,51 +186,75 @@ function App() {
     setSettings(prev => ({ ...prev, [key]: value }))
   }, [])
 
-  // ---- カードデータ（店舗ごと・ローカルキャッシュ） ----
-  const [genreData, setGenreData] = useState(emptyGenreData)
-  const [inputSource, setInputSource] = useState(() => (
-    normalizeInputSource(localStorage.getItem('tonton_input_source'))
-  ))
-  const [activeGenre, setActiveGenre] = useState(() => localStorage.getItem('tonton_activeGenre') || GENRES[0].key)
-
-  useEffect(() => { localStorage.setItem('tonton_input_source', inputSource) }, [inputSource])
-  useEffect(() => { localStorage.setItem('tonton_activeGenre', activeGenre) }, [activeGenre])
+  // ---- 入力ワークスペース（店舗ごと・ローカルキャッシュ） ----
+  // 入力形式、表示タブ、カード、選択中を1つのstateで更新し、
+  // とんとんとパワンのデータが中間状態で混ざらないようにする。
+  const [workspaceState, setWorkspaceState] = useState(() => ({
+    storeId: null,
+    workspace: createEmptyInputWorkspace(),
+    selectedInputSource: INPUT_SOURCES.TONTON,
+  }))
 
   // 店舗切替でその店のカードをローカルから復元
   // 過去バージョンのバグで壊れた選択状態（重複・null）が残っていても、復元時に必ず浄化する
   useEffect(() => {
-    if (!activeStoreId) { setGenreData(emptyGenreData()); return }
+    if (!activeStoreId) {
+      setWorkspaceState({ storeId: null, workspace: createEmptyInputWorkspace(), selectedInputSource: INPUT_SOURCES.TONTON })
+      return
+    }
+    let restored = createEmptyInputWorkspace()
     try {
       const raw = localStorage.getItem(`tonton_genre_${activeStoreId}`)
-      if (!raw) { setGenreData(emptyGenreData()); return }
-      const parsed = JSON.parse(raw)
-      const base = emptyGenreData()
-      for (const key of Object.keys(base)) {
-        const gd = parsed[key]
-        if (!gd) continue
-        const allCards = Array.isArray(gd.allCards) ? gd.allCards.filter(c => c && c.id != null) : []
-        const seen = new Set()
-        const selected = (Array.isArray(gd.selected) ? gd.selected : [])
-          .filter(c => c && c.id != null && !seen.has(c.id) && seen.add(c.id))
-        base[key] = { ...base[key], ...gd, allCards, selected }
-      }
-      setGenreData(base)
-    } catch { setGenreData(emptyGenreData()) }
+      restored = hydrateInputWorkspace(raw ? JSON.parse(raw) : null)
+    } catch { restored = createEmptyInputWorkspace() }
+    setWorkspaceState({
+      storeId: activeStoreId,
+      workspace: restored,
+      selectedInputSource: restored.inputSource,
+    })
   }, [activeStoreId])
 
-  // カードデータ永続（店舗ごと・容量超過時はカード本体を落とす）
+  // 入力形式とカードデータを同じペイロードで永続。
+  // storeIdが復元済みのstateと一致するときだけ保存し、店舗切替直後の前店舗データ誤書込みも防ぐ。
   useEffect(() => {
-    if (!activeStoreId) return
+    if (!activeStoreId || workspaceState.storeId !== activeStoreId) return
     const key = `tonton_genre_${activeStoreId}`
-    try { localStorage.setItem(key, JSON.stringify(genreData)) }
+    try { localStorage.setItem(key, JSON.stringify(workspaceState.workspace)) }
     catch {
       // 容量超過: カード一覧は次回Excel再取込で復元できるので落とし、選択中（プレビューの中身）は守る
-      const slim = {}
-      for (const [k, gd] of Object.entries(genreData)) slim[k] = { ...gd, allCards: [] }
+      const slim = {
+        ...workspaceState.workspace,
+        genreData: Object.fromEntries(Object.entries(workspaceState.workspace.genreData)
+          .map(([genreKey, data]) => [genreKey, { ...data, allCards: [] }])),
+      }
       try { localStorage.setItem(key, JSON.stringify(slim)) }
       catch (e) { console.error('カードデータのローカル保存に失敗（容量超過）。リロード時はExcelを再取込してください', e) }
     }
-  }, [genreData, activeStoreId])
+  }, [workspaceState.workspace, workspaceState.storeId, activeStoreId])
+
+  const workspaceReady = workspaceState.storeId === activeStoreId
+  const workspace = workspaceReady ? workspaceState.workspace : createEmptyInputWorkspace()
+  const { genreData, activeGenre, inputSource: loadedInputSource, visibleGenreKeys } = workspace
+  const inputSource = workspaceReady ? workspaceState.selectedInputSource : loadedInputSource
+
+  const updateWorkspace = useCallback((updater) => {
+    setWorkspaceState(prev => {
+      if (prev.storeId !== activeStoreId) return prev
+      const workspace = typeof updater === 'function' ? updater(prev.workspace) : updater
+      return { ...prev, workspace }
+    })
+  }, [activeStoreId])
+
+  const setInputSource = useCallback((nextSource) => {
+    const normalized = normalizeInputSource(nextSource)
+    setWorkspaceState(prev => (
+      prev.storeId === activeStoreId ? { ...prev, selectedInputSource: normalized } : prev
+    ))
+  }, [activeStoreId])
+
+  const setActiveGenre = useCallback((genreKey) => {
+    updateWorkspace(prev => setWorkspaceActiveGenre(prev, genreKey))
+  }, [updateWorkspace])
 
   // 価格設定が変わったら全カード再計算
   const pricing = useMemo(() => ({
@@ -242,41 +268,59 @@ function App() {
   useEffect(() => {
     // 店舗切替直後は設定ロード完了まで再計算しない（前店舗のカードに新店舗の価格設定を誤適用しないため）
     if (!settingsLoaded) return
-    setGenreData(prev => recomputePrices(prev, pricing))
-  }, [pricing, settingsLoaded])
+    updateWorkspace(prev => ({ ...prev, genreData: recomputePrices(prev.genreData, pricing) }))
+  }, [pricing, settingsLoaded, updateWorkspace])
 
   // アクティブジャンルのスライス
   const active = genreData[activeGenre] || { allCards: [], selected: [] }
 
   const setActiveAllCards = useCallback((updater) => {
-    setGenreData(prev => {
-      const cur = prev[activeGenre]
+    updateWorkspace(prev => {
+      const cur = prev.genreData[prev.activeGenre]
       const next = typeof updater === 'function' ? updater(cur.allCards) : updater
-      return { ...prev, [activeGenre]: { ...cur, allCards: next } }
+      return {
+        ...prev,
+        genreData: { ...prev.genreData, [prev.activeGenre]: { ...cur, allCards: next } },
+      }
     })
-  }, [activeGenre])
+  }, [updateWorkspace])
 
   const setActiveSelected = useCallback((updater) => {
-    setGenreData(prev => {
-      const cur = prev[activeGenre]
+    updateWorkspace(prev => {
+      const cur = prev.genreData[prev.activeGenre]
       const raw = typeof updater === 'function' ? updater(cur.selected) : updater
       // selectedに同一idが二重に入らないよう常に一意化（増殖防止・登録順は先勝ちで保持）
       const seen = new Set()
       const next = (raw || []).filter(c => (c && c.id != null && !seen.has(c.id)) ? (seen.add(c.id), true) : false)
-      return { ...prev, [activeGenre]: { ...cur, selected: next } }
+      return {
+        ...prev,
+        genreData: { ...prev.genreData, [prev.activeGenre]: { ...cur, selected: next } },
+      }
     })
-  }, [activeGenre])
+  }, [updateWorkspace])
 
+  // パワン専用の1ジャンル単体取込。パワンワークスペース内でのみ対象ジャンルを置換する。
   const loadGenreCards = useCallback((genreKey, cards, sheetUrl) => {
-    const priced = cards.map(c => ({ ...c, price: computeDisplayPrice(c.basePrice, pricing) }))
-    setGenreData(prev => ({
-      ...prev,
-      [genreKey]: { ...prev[genreKey], allCards: priced, selected: [], sheetUrl, loadedAt: Date.now() },
+    updateWorkspace(prev => replaceWorkspaceGenre(prev, genreKey, cards, {
+      sheetUrl,
+      transformCard: card => ({ ...card, price: computeDisplayPrice(card.basePrice, pricing) }),
     }))
-  }, [pricing])
+  }, [pricing, updateWorkspace])
+
+  // 全体Excelが正常に解析できた後だけ、旧形式の全入力データを消して原子的に切り替える。
+  const applyInputImport = useCallback(({ inputSource: importedSource, result, sheetUrl }) => {
+    setWorkspaceState(prev => {
+      if (prev.storeId !== activeStoreId) return prev
+      const nextWorkspace = applyImportedWorkspace(prev.workspace, importedSource, result, {
+        sheetUrl,
+        transformCard: card => ({ ...card, price: computeDisplayPrice(card.basePrice, pricing) }),
+      })
+      return { ...prev, workspace: nextWorkspace, selectedInputSource: importedSource }
+    })
+  }, [activeStoreId, pricing])
 
   const handleClearActive = () => {
-    setGenreData(prev => ({ ...prev, [activeGenre]: { ...prev[activeGenre], allCards: [], selected: [] } }))
+    updateWorkspace(prev => clearActiveWorkspaceGenre(prev))
   }
 
   const handleLogout = async () => {
@@ -334,8 +378,11 @@ function App() {
         activeGenre={activeGenre}
         setActiveGenre={setActiveGenre}
         genreMeta={genreMeta}
+        visibleGenreKeys={visibleGenreKeys}
         inputSource={inputSource}
         setInputSource={setInputSource}
+        loadedInputSource={loadedInputSource}
+        applyInputImport={applyInputImport}
         loadGenreCards={loadGenreCards}
         allCards={active.allCards}
         setAllCards={setActiveAllCards}

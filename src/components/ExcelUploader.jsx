@@ -4,10 +4,18 @@ import {
   INPUT_SOURCES,
   INPUT_SOURCE_OPTIONS,
   parseInputFile,
-  shouldReplaceImportedGenre,
 } from '../lib/inputSources.js'
 
-export default function ExcelUploader({ loadGenreCards, onGenreDetected, inputSource, onInputSourceChange }) {
+const inputSourceLabel = source => (
+  source === INPUT_SOURCES.VAULT ? 'パワン形式' : 'とんとん形式'
+)
+
+export default function ExcelUploader({
+  inputSource,
+  loadedInputSource,
+  onInputSourceChange,
+  onImportComplete,
+}) {
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState(null)
   const [dragging, setDragging] = useState(false)
@@ -35,9 +43,6 @@ export default function ExcelUploader({ loadGenreCards, onGenreDetected, inputSo
       for (const g of genresToReport) {
         const r = res[g.key]
         if (r && r.format && r.format !== 'unknown') format = r.format  // 検出した投入形式
-        if (r && shouldReplaceImportedGenre(inputSource, r)) {
-          loadGenreCards(g.key, r.cards || [], `excel:${inputSource}:${file.name}`)
-        }
         if (r && r.total > 0) {
           lines.push(`${g.label} ${r.total}件`)
         } else {
@@ -45,8 +50,13 @@ export default function ExcelUploader({ loadGenreCards, onGenreDetected, inputSo
         }
       }
 
-      const detectedGenre = Object.entries(res).find(([, result]) => result?.total > 0)?.[0]
-      if (detectedGenre) onGenreDetected?.(detectedGenre)
+      // 解析が全て完了した後だけ1回の更新でワークスペースを入れ替える。
+      // 失敗時はここに到達しないため、現在のタブ・カード・選択中は保たれる。
+      onImportComplete({
+        inputSource,
+        result: res,
+        sheetUrl: `excel:${inputSource}:${file.name}`,
+      })
 
       const fmtLabel = inputSource === INPUT_SOURCES.TONTON
         ? 'とんとん形式'
@@ -57,7 +67,7 @@ export default function ExcelUploader({ loadGenreCards, onGenreDetected, inputSo
     } finally {
       setLoading(false)
     }
-  }, [inputSource, loadGenreCards, onGenreDetected])
+  }, [inputSource, onImportComplete])
 
   const onDrop = (e) => {
     e.preventDefault(); e.stopPropagation(); setDragging(false)
@@ -85,6 +95,16 @@ export default function ExcelUploader({ loadGenreCards, onGenreDetected, inputSo
           )
         })}
       </div>
+      {inputSource !== loadedInputSource && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] leading-4 text-amber-800"
+        >
+          {inputSourceLabel(inputSource)}のExcel読込完了後に表示を切り替え、
+          現在の{inputSourceLabel(loadedInputSource)}の入力データと選択中を入れ替えます。
+        </div>
+      )}
       <div
         className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
           dragging ? 'border-[#1e3a5f] bg-[#1e3a5f]/10' : 'border-[#d0d5dd] hover:border-[#1e3a5f] hover:bg-[#f8f9fb]'

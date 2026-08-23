@@ -26,8 +26,8 @@ import { supportsRegularLists } from '../lib/inputSources.js'
 export default function Sidebar({
   width = 440,
   stores, allStores = [], isAdmin, activeStoreId, setActiveStoreId, onOpenAdmin,
-  activeGenre, setActiveGenre, genreMeta, loadGenreCards,
-  inputSource, setInputSource,
+  activeGenre, setActiveGenre, genreMeta, visibleGenreKeys, loadGenreCards,
+  inputSource, setInputSource, loadedInputSource, applyInputImport,
   allCards, setAllCards, cards, setCards, settings, updateSettings, setSettings,
   userEmail, onClearData, onLogout,
 }) {
@@ -35,7 +35,7 @@ export default function Sidebar({
   const genreLabel = GENRE_BY_KEY[activeGenre]?.label || activeGenre
   // このジャンルの全定番リストが覆っているカードキー（CardListPanelが算出 → CardSelectorのフィルタに渡す）
   const [listedKeys, setListedKeys] = useState(null)
-  const listEnabled = supportsRegularLists(inputSource)
+  const listEnabled = supportsRegularLists(loadedInputSource)
 
   useEffect(() => {
     if (!listEnabled) setListedKeys(null)
@@ -75,29 +75,36 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* ジャンルタブ（常時表示） */}
+      {/* とんとんは読込済みの1ジャンル、パワンは5ジャンルだけを表示 */}
       <div className="px-4 py-2 border-b border-[#e0e4ea] bg-[#f8f9fb] sticky top-[92px] z-10">
-        <GenreTabs activeGenre={activeGenre} setActiveGenre={setActiveGenre} genreMeta={genreMeta} />
+        <GenreTabs
+          activeGenre={activeGenre}
+          setActiveGenre={setActiveGenre}
+          genreMeta={genreMeta}
+          visibleGenreKeys={visibleGenreKeys}
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
         <AccordionSection title="データ取得" defaultOpen>
           <div className="text-[11px] font-semibold text-[#1e3a5f] mb-1">入力形式を選んでExcelを読み込み</div>
           <ExcelUploader
-            loadGenreCards={loadGenreCards}
-            onGenreDetected={setActiveGenre}
             inputSource={inputSource}
+            loadedInputSource={loadedInputSource}
             onInputSourceChange={setInputSource}
+            onImportComplete={applyInputImport}
           />
 
-          <details className="mt-2">
-            <summary className="text-[11px] text-[#5a6577] cursor-pointer hover:text-[#1e3a5f]">
-              {genreLabel}だけ単体で読み込む
-            </summary>
-            <div className="mt-2">
-              <GenreExcelUploader genre={activeGenre} loadGenreCards={loadGenreCards} />
-            </div>
-          </details>
+          {listEnabled && (
+            <details className="mt-2">
+              <summary className="text-[11px] text-[#5a6577] cursor-pointer hover:text-[#1e3a5f]">
+                {genreLabel}だけ単体で読み込む（パワン形式）
+              </summary>
+              <div className="mt-2">
+                <GenreExcelUploader genre={activeGenre} loadGenreCards={loadGenreCards} />
+              </div>
+            </details>
+          )}
 
           {allCards.length > 0 && (
             <button
