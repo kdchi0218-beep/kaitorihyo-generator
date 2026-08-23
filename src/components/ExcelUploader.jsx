@@ -1,13 +1,13 @@
 import { useState, useRef, useCallback } from 'react'
 import { GENRE_BY_KEY, GENRES } from '../lib/genres.js'
-import { INPUT_SOURCES, INPUT_SOURCE_OPTIONS, parseInputFile } from '../lib/inputSources.js'
+import { INPUT_SOURCES, INPUT_SOURCE_OPTIONS, normalizeInputSource, parseInputFile } from '../lib/inputSources.js'
 
 export default function ExcelUploader({ loadGenreCards, onGenreDetected }) {
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState(null)
   const [dragging, setDragging] = useState(false)
   const [inputSource, setInputSource] = useState(() => (
-    localStorage.getItem('tonton_input_source') || INPUT_SOURCES.TONTON
+    normalizeInputSource(localStorage.getItem('tonton_input_source'))
   ))
   const fileRef = useRef()
 

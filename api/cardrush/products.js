@@ -5,9 +5,15 @@ import { requireScraperAuthorization } from '../_lib/scraper-auth.js'
 
 export const maxDuration = 300
 
-function parseBody(body) {
-  if (typeof body === 'string') return JSON.parse(body)
-  return body || {}
+export function parseProductsBody(body) {
+  let parsed = body
+  if (typeof body === 'string') {
+    try { parsed = JSON.parse(body) } catch { throw new Error('invalid JSON body') }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('invalid request body')
+  }
+  return parsed
 }
 
 async function mapWithConcurrency(values, concurrency, mapper) {
@@ -27,7 +33,7 @@ async function mapWithConcurrency(values, concurrency, mapper) {
 export default async function handler(req, res) {
   if (!allowMethod(req, res, 'POST') || !requireScraperAuthorization(req, res)) return
   try {
-    const body = parseBody(req.body)
+    const body = parseProductsBody(req.body)
     const genre = normalizeGenre(body.genre)
     const ids = normalizeProductIds(body.ids)
     const rows = await mapWithConcurrency(ids, 3, async (id) => [id, await getProduct({ genre, id })])

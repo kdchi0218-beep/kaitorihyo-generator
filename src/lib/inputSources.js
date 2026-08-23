@@ -19,6 +19,12 @@ export const INPUT_SOURCE_OPTIONS = Object.freeze([
   },
 ])
 
+export function normalizeInputSource(value) {
+  return value === INPUT_SOURCES.VAULT || value === INPUT_SOURCES.TONTON
+    ? value
+    : INPUT_SOURCES.TONTON
+}
+
 export async function parseInputFile(file, inputSource) {
   let result
 

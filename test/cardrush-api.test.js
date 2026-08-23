@@ -15,6 +15,8 @@ import {
 } from '../api/_lib/cardrush-parsers.js'
 import { isScraperAuthorized } from '../api/_lib/scraper-auth.js'
 import { createScrapeCache, makeScrapeCacheKey } from '../api/_lib/scrape-cache.js'
+import { fetchImageAsset, parseAllowedImageUrl } from '../api/image-proxy.js'
+import { parseProductsBody } from '../api/cardrush/products.js'
 
 test('cardrush config: 許可ジャンルだけを正規化する', () => {
   assert.equal(normalizeGenre('pokemon'), 'pokemon')
@@ -49,6 +51,57 @@ test('cardrush config: 商品ID配列を重複排除し、上限を超えた入�
   assert.throws(() => normalizeProductIds([]), /ids/)
   assert.throws(() => normalizeProductIds(['abc']), /id/)
   assert.throws(() => normalizeProductIds(Array.from({ length: 26 }, (_, index) => index + 1)), /25/)
+})
+
+test('products API: 不正JSONと配列bodyは400対象の入力エラーにする', () => {
+  assert.deepEqual(parseProductsBody('{"genre":"pokemon","ids":["1"]}'), {
+    genre: 'pokemon',
+    ids: ['1'],
+  })
+  assert.throws(() => parseProductsBody('{broken'), /invalid JSON body/)
+  assert.throws(() => parseProductsBody([]), /invalid request body/)
+})
+
+test('image proxy: HTTPSの許可ホストだけを受け付ける', () => {
+  assert.equal(
+    parseAllowedImageUrl('https://example.supabase.co/storage/v1/object/public/a.jpg').hostname,
+    'example.supabase.co',
+  )
+  assert.throws(() => parseAllowedImageUrl('http://example.supabase.co/a.jpg'), /https/)
+  assert.throws(() => parseAllowedImageUrl('https://example.supabase.co:444/a.jpg'), /port/)
+  assert.throws(() => parseAllowedImageUrl('https://supabase.co.attacker.example/a.jpg'), /domain/)
+})
+
+test('image proxy: リダイレクトと画像以外を中継しない', async () => {
+  await assert.rejects(
+    () => fetchImageAsset('https://example.supabase.co/a.jpg', {
+      fetchImpl: async () => new Response('', { status: 302, headers: { Location: 'http://127.0.0.1/' } }),
+    }),
+    /redirect/,
+  )
+  await assert.rejects(
+    () => fetchImageAsset('https://example.supabase.co/a.jpg', {
+      fetchImpl: async () => new Response('<html></html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      }),
+    }),
+    /content type/,
+  )
+})
+
+test('image proxy: Content-Lengthの有無にかかわらず容量上限を強制する', async () => {
+  const bytes = new Uint8Array(12)
+  await assert.rejects(
+    () => fetchImageAsset('https://example.supabase.co/a.jpg', {
+      maxBytes: 10,
+      fetchImpl: async () => new Response(bytes, {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg' },
+      }),
+    }),
+    /too large/,
+  )
 })
 
 test('cardrush parser: __NEXT_DATA__をJSONとして取り出す', () => {

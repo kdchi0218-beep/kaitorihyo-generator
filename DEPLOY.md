@@ -55,6 +55,34 @@ git push origin main                       # → Vercelが自動デプロイ（1
    スクレイピング用の2変数もVercelのProduction/Previewへ設定する。
 4. **招待メール**を使うには Supabase → Authentication → URL Configuration の Site URL / Redirect URLs に本番URLを設定。
 
+## Supabase初回管理者の作成
+
+`app_admins` はアプリ経由で自分自身を管理者にできない設計。初回だけSupabase Dashboardで次の順に作業する。
+
+1. Authentication → Users で管理者ユーザーを作成または招待する。
+2. ユーザーのメールアドレスを確認してから、SQL Editorで次を実行する（UUIDを手入力しない）。
+
+```sql
+insert into public.app_admins (user_id)
+select id
+from auth.users
+where lower(email) = lower('<管理者メールアドレス>')
+on conflict (user_id) do nothing;
+```
+
+3. 次の確認SQLが1件を返すことを確認する。
+
+```sql
+select a.user_id, u.email
+from public.app_admins as a
+join auth.users as u on u.id = a.user_id
+where lower(u.email) = lower('<管理者メールアドレス>');
+```
+
+4. アプリへ管理者でログインし、店舗を1件作成できることを確認する。続いて一般ユーザーでは管理APIが403になり、所属外店舗を取得できないことを確認する。
+
+初期設定のためにRLSを無効化したり、`app_admins` へのauthenticated INSERT権限を付与したりしないこと。
+
 ## 🐽トントン_買取表管理_v2 の切替
 
 GASソースは `~/Desktop/【codex】Mycompany-v2/.secretary/gas/kaitori/sheet-manager-v2.gs`。本番反映後、Apps ScriptのScript Propertiesへ次を設定する。

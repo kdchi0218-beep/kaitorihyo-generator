@@ -3,6 +3,9 @@
 
 import { supabase } from './supabase.js'
 
+const MAX_ASSET_BYTES = 10 * 1024 * 1024
+const ALLOWED_ASSET_TYPES = new Set(['image/avif', 'image/gif', 'image/jpeg', 'image/png', 'image/webp'])
+
 /** 現在のユーザーが管理者か */
 export async function checkIsAdmin() {
   const { data: { user } } = await supabase.auth.getUser()
@@ -49,10 +52,12 @@ export async function loadStoreSettings(storeId) {
 }
 
 export async function saveStoreSettings(storeId, settings) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('store_settings')
     .upsert({ store_id: storeId, settings, updated_at: new Date().toISOString() })
+    .select('store_id').single()
   if (error) throw error
+  if (!data) throw new Error('店舗設定を保存できませんでした')
 }
 
 // テンプレートのCRUDは sharedTemplates.js（templatesテーブル・ジャンル別）に一本化済み。
@@ -61,6 +66,12 @@ export async function saveStoreSettings(storeId, settings) {
 // ---- 画像（背景・ロゴ）→ Storage に上げて公開URLを返す ----
 
 export async function uploadAsset(storeId, file) {
+  if (!ALLOWED_ASSET_TYPES.has(file.type)) {
+    throw new Error('PNG / JPEG / WebP / GIF / AVIF 画像を選んでください')
+  }
+  if (!Number.isFinite(file.size) || file.size <= 0 || file.size > MAX_ASSET_BYTES) {
+    throw new Error('画像は10MB以下のファイルを選んでください')
+  }
   const ext = (file.name.split('.').pop() || 'png').toLowerCase()
   const path = `${storeId}/${crypto.randomUUID()}.${ext}`
   const { error } = await supabase.storage

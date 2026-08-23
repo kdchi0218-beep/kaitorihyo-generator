@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx'
 import {
   INPUT_SOURCES,
   INPUT_SOURCE_OPTIONS,
+  normalizeInputSource,
   parseInputFile,
 } from '../src/lib/inputSources.js'
 import {
@@ -20,6 +21,12 @@ const writeFile = (workbook) => {
 test('とんとん総合版: とんとん形式を第一選択肢にする', () => {
   assert.equal(INPUT_SOURCE_OPTIONS[0].value, INPUT_SOURCES.TONTON)
   assert.equal(INPUT_SOURCE_OPTIONS[1].value, INPUT_SOURCES.VAULT)
+})
+
+test('とんとん総合版: 保存値が不正な場合はとんとん形式へ戻す', () => {
+  assert.equal(normalizeInputSource(INPUT_SOURCES.VAULT), INPUT_SOURCES.VAULT)
+  assert.equal(normalizeInputSource('tampered'), INPUT_SOURCES.TONTON)
+  assert.equal(normalizeInputSource(null), INPUT_SOURCES.TONTON)
 })
 
 test('とんとん形式: ポケモンの1シートを共通カードモデルへ正規化する', () => {

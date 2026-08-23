@@ -31,12 +31,15 @@ export async function copyCardListToStore(targetStoreId, genre, name, items) {
 }
 
 export async function saveCardListItems(id, items) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('card_lists').update({ items, updated_at: new Date().toISOString() }).eq('id', id)
+    .select('id').maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('定番リストが見つからないか、更新権限がありません')
 }
 
 export async function deleteCardList(id) {
-  const { error } = await supabase.from('card_lists').delete().eq('id', id)
+  const { data, error } = await supabase.from('card_lists').delete().eq('id', id).select('id').maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('定番リストが見つからないか、削除権限がありません')
 }

@@ -21,19 +21,24 @@ export async function saveTemplate(storeId, genre, name, settings) {
 }
 
 export async function updateTemplate(id, name, settings) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('templates').update({ name, settings, updated_at: new Date().toISOString() }).eq('id', id)
+    .select('id').maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('テンプレートが見つからないか、更新権限がありません')
 }
 
 export async function deleteTemplate(id) {
-  const { error } = await supabase.from('templates').delete().eq('id', id)
+  const { data, error } = await supabase.from('templates').delete().eq('id', id).select('id').maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('テンプレートが見つからないか、削除権限がありません')
 }
 
 // テンプレ名だけ変更（中身は変えない）
 export async function renameTemplate(id, name) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('templates').update({ name, updated_at: new Date().toISOString() }).eq('id', id)
+    .select('id').maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('テンプレートが見つからないか、更新権限がありません')
 }
