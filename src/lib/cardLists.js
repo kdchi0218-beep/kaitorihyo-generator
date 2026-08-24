@@ -4,7 +4,7 @@
 import { postData } from './apiClient.js'
 
 // 互換のため再エクスポート（既存の import 元はパス変更不要）
-export { cardKey, itemKey, baseKey, applyList, applyListWithMissing, mergeMissingIntoSelection, applyManualPricesToItems, detectRenamedCards, resolveItems, enrichItems, dedupeItems, cardsToItems, tokyoDateKey } from './cardKeys.js'
+export { cardKey, itemKey, baseKey, identityKey, listedKeysForItems, isCardListed, applyList, applyListWithMissing, mergeMissingIntoSelection, applyManualPricesToItems, detectRenamedCards, resolveItems, enrichItems, dedupeItems, cardsToItems, tokyoDateKey } from './cardKeys.js'
 
 // ---- CRUD ----
 

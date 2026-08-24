@@ -3,13 +3,14 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import * as XLSX from 'xlsx'
 
 import { GENRES, GENRE_BY_KEY, HEADER_ALIASES, detectFormat, usesDailyPreviousPrice } from '../src/lib/genres.js'
 import { computeDisplayPrice, DEFAULT_PRICING } from '../src/lib/pricing.js'
 import { parseVaultRows } from '../src/lib/vaultParser.js'
 import { parseExcelAllGenres, parseExcelSingleGenre } from '../src/lib/excelSource.js'
-import { cardKey, itemKey, applyList, applyListWithMissing, mergeMissingIntoSelection, applyManualPricesToItems, detectRenamedCards, resolveItems, enrichItems, dedupeItems, cardsToItems, tokyoDateKey } from '../src/lib/cardKeys.js'
+import { cardKey, itemKey, identityKey, listedKeysForItems, isCardListed, applyList, applyListWithMissing, mergeMissingIntoSelection, applyManualPricesToItems, detectRenamedCards, resolveItems, enrichItems, dedupeItems, cardsToItems, tokyoDateKey } from '../src/lib/cardKeys.js'
 import { cardsToCsv } from '../src/lib/cardCsv.js'
 import { DEFAULT_SETTINGS } from '../src/lib/defaults.js'
 
@@ -53,15 +54,30 @@ function buildWorkbook() {
 // ============================================================
 // 1. ジャンル定義
 // ============================================================
-test('genres: 5ジャンル定義とGENRE_BY_KEYが整合', () => {
-  assert.equal(GENRES.length, 5)
+test('genres: パワンの6ジャンル定義にドラゴンボールを含める', () => {
+  assert.equal(GENRES.length, 6)
   for (const g of GENRES) {
     assert.ok(g.key && g.label && g.gameType && g.sheetHint && g.placeholder)
     assert.equal(GENRE_BY_KEY[g.key], g)
   }
+  assert.deepEqual(GENRE_BY_KEY.dragonball, {
+    key: 'dragonball',
+    label: 'ドラゴンボール',
+    gameType: 'dragonball',
+    placeholder: './card-back-dragonball.jpg',
+    sheetHint: 'ドラゴンボール',
+    hasExpansion: true,
+    hasRarity: true,
+  })
   assert.equal(GENRE_BY_KEY.yugioh.hasRarity, true)
   assert.equal(GENRE_BY_KEY.yugioh.hasExpansion, true)
   assert.ok(HEADER_ALIASES.name.includes('ガチャ選択肢名称'))
+})
+
+test('genres: ドラゴンボールの代替画像を配信物に含める', async () => {
+  const image = await readFile(new URL('../public/card-back-dragonball.jpg', import.meta.url))
+  assert.ok(image.length > 1_000)
+  assert.deepEqual([...image.subarray(0, 3)], [0xff, 0xd8, 0xff])
 })
 
 // ============================================================
@@ -150,13 +166,14 @@ test('vaultParser: 同一行データでも連番でid絶対一意', () => {
 // ============================================================
 // 4. Excel取込パイプライン
 // ============================================================
-test('excel: 1ファイルから5ジャンルを分解取込・件数・id一意', async () => {
+test('excel: 1ファイルから最大6ジャンルを分解取込・件数・id一意', async () => {
   const res = await parseExcelAllGenres(writeFile(buildWorkbook()))
   assert.equal(res.pokemon.cards.length, 3)        // 空名1件除外で3
   assert.equal(res.pokemon_old.cards.length, 1)
   assert.equal(res.onepiece.cards.length, 2)
   assert.equal(res.yugioh.cards.length, 1)
   assert.equal(res.weiss.cards.length, 1)
+  assert.equal(res.dragonball.notFound, true)
   // ジャンル横断でも id 一意
   const allIds = Object.values(res).flatMap(r => (r.cards || []).map(c => c.id))
   assert.equal(new Set(allIds).size, allIds.length)
@@ -260,6 +277,92 @@ test('dedupeItems: 旧+新形式の重複（取り込み事故）がenrich後に
   const healed = dedupeItems(enrichItems(corrupted, all))
   assert.equal(healed.length, 1, '編集画面を開いて保存すれば重複が消える')
 })
+const dragonCollisionCards = [
+  {
+    id: 'db-winner',
+    productId: '11b44a6a-8db4-47af-ad25-3e762d93b0d2',
+    listNo: 'SB01-057',
+    type: 'PSA10',
+    name: 'ブルマ/孫悟空：少年期',
+    rarity: 'SR☆',
+    expansion: 'アルティメットバトル WINNER',
+    basePrice: 397800,
+  },
+  {
+    id: 'db-manga-booster',
+    productId: '6fcd41d2-e5fd-4404-8327-440546eb3186',
+    listNo: 'SB01-057',
+    type: 'PSA10',
+    name: 'ブルマ/孫悟空：少年期',
+    rarity: 'SR☆',
+    expansion: 'MANGA BOOSTER 01[SB01]',
+    basePrice: 86700,
+  },
+]
+
+test('ドラゴンボール: 表示キーが同じでも商品IDが違う別絵柄を定番リストから落とさない', () => {
+  const cards = dragonCollisionCards
+
+  const items = dedupeItems(cardsToItems(cards))
+  assert.equal(items.length, 2)
+  assert.deepEqual(items.map(({ productId }) => productId), cards.map(({ productId }) => productId))
+  assert.deepEqual(applyList(items, cards).map(({ id }) => id), ['db-winner', 'db-manga-booster'])
+})
+test('ドラゴンボール: 商品ID付きの欠品カードを同じ表示キーの別絵柄へ置換しない', () => {
+  const cards = dragonCollisionCards
+  const items = cardsToItems(cards)
+  const resolved = resolveItems(items, [cards[1]])
+  assert.deepEqual(resolved.map(c => c?.id || null), [null, 'db-manga-booster'])
+
+  const applied = applyListWithMissing(items, [cards[1]])
+  assert.equal(applied[0].missing, true)
+  assert.equal(applied[0].productId, cards[0].productId)
+  assert.equal(applied[0].expansion, cards[0].expansion)
+  assert.equal(applied[1].id, 'db-manga-booster')
+  assert.deepEqual(detectRenamedCards([items[0]], [cards[1]]), [], '別商品を名前変更候補にも出さない')
+})
+test('ドラゴンボール: 同一表示キーの別商品をゴースト・手動価格でも個別管理する', () => {
+  const items = cardsToItems(dragonCollisionCards)
+  const ghosts = applyListWithMissing(items, [])
+  assert.equal(ghosts.length, 2)
+  assert.notEqual(identityKey(ghosts[0]), identityKey(ghosts[1]))
+  assert.deepEqual(ghosts.map(g => g.productId), items.map(it => it.productId))
+
+  const merged = mergeMissingIntoSelection([], ghosts)
+  assert.equal(merged.length, 2)
+  assert.equal(mergeMissingIntoSelection(merged, ghosts).length, 2, '再適用しても増減しない')
+
+  const edited = [
+    { ...ghosts[0], price: 11100, priceManual: true },
+    { ...ghosts[1], price: 22200, priceManual: true },
+  ]
+  const result = applyManualPricesToItems(items, edited, { editedOn: '2026-08-24' })
+  assert.equal(result.matchedCount, 2)
+  assert.deepEqual(result.next.map(it => it.manualPrice), [11100, 22200])
+})
+test('商品ID: 旧項目と新項目が同じ表示キーなら並び順に関係なく新項目へ統合する', () => {
+  const current = cardsToItems([dragonCollisionCards[0]])[0]
+  const legacy = { listNo: current.listNo, type: current.type, name: current.name }
+  assert.deepEqual(dedupeItems([legacy, current]), [current])
+  assert.deepEqual(dedupeItems([current, legacy]), [current])
+  const bothProducts = cardsToItems(dragonCollisionCards)
+  assert.deepEqual(dedupeItems([legacy, ...bothProducts]), bothProducts, '曖昧な旧1件だけを除き別商品2件は保持')
+})
+test('リスト未登録判定: 同一表示キーでも登録した商品IDの絵柄だけを登録済みにする', () => {
+  const items = cardsToItems([dragonCollisionCards[0]])
+  const keys = listedKeysForItems(items, dragonCollisionCards)
+  assert.equal(isCardListed(dragonCollisionCards[0], keys), true)
+  assert.equal(isCardListed(dragonCollisionCards[1], keys), false)
+})
+test('UI配線: リスト追加・未登録フィルタも商品ID優先の共通キーを使う', async () => {
+  const [panel, selector] = await Promise.all([
+    readFile(new URL('../src/components/CardListPanel.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/CardSelector.jsx', import.meta.url), 'utf8'),
+  ])
+  assert.match(panel, /listedKeysForItems\(l\.items \|\| \[\], allCards\)/)
+  assert.match(panel, /const key = identityKey\(c\)/)
+  assert.match(selector, /!isCardListed\(c, listedKeys\)/)
+})
 test('cardsToItems: レアリティ・画像URLがあれば保存 / 無ければ付けない', () => {
   assert.deepEqual(cardsToItems([{ listNo: 'JP1', type: 'PSA10', name: 'A', rarity: '20th', imageUrl: 'https://x/1.png' }]),
     [{ listNo: 'JP1', type: 'PSA10', name: 'A', rarity: '20th', img: 'https://x/1.png' }])
@@ -362,8 +465,8 @@ test('全ジャンル手動価格: 当日は前回表示を消し、翌日も発
   const atMidnight = applyManualPricesToItems([item], [{ ...ghost, priceEditEditedOn: '2026-08-09' }], { editedOn: '2026-08-10' })
   assert.equal(atMidnight.next[0].manualEditedOn, '2026-08-09', '保存開始時ではなく編集確定時の日本日付を優先')
 })
-test('全5ジャンルで日次の前回価格復活を使い、事前登録は対象外', () => {
-  assert.equal(GENRES.every(g => usesDailyPreviousPrice(g.key)), true, '5ジャンルすべて同じ日次仕様')
+test('最大6ジャンルで日次の前回価格復活を使い、事前登録は対象外', () => {
+  assert.equal(GENRES.every(g => usesDailyPreviousPrice(g.key)), true, '6ジャンルすべて同じ日次仕様')
   const edited = { listNo: '1', type: 'PSA10', name: 'A', base: 10000, manualPrice: 8000, manualEditedOn: '2026-08-09' }
   const otherGenre = applyListWithMissing([edited], [], b => b, { restorePreviousPriceDaily: true, todayKey: '2026-08-10' })[0]
   assert.equal(otherGenre.priceIsLast, true, 'ポケモン以外も翌日は前回価格を再表示')
@@ -544,8 +647,10 @@ const dedupeSelected = (raw) => {
 const computeAdds = (listItems, allCards, cards) => {
   const listIds = new Set(applyList(listItems || [], allCards).map(c => c.id))
   const seenKey = new Set()
-  return cards.filter(c => !listIds.has(c.id) && !seenKey.has(cardKey(c)) && seenKey.add(cardKey(c)))
-    .map(c => ({ listNo: c.listNo || '', type: c.type || '', name: c.name }))
+  return cardsToItems(cards.filter(c => {
+    const key = identityKey(c)
+    return !listIds.has(c.id) && !seenKey.has(key) && seenKey.add(key)
+  }))
 }
 // 編集画面の「取り込むバー」pending（CardListEditor と同一）
 const computePending = (items, cards) => {
@@ -591,6 +696,12 @@ test('リスト: 型番なしの別カードも追加できる（id判定・誤�
   const adds = computeAdds(listItems, sampleCards, selected)
   assert.equal(adds.length, 1)                               // p5は別idなので追加対象
   assert.equal(adds[0].name, 'ミュウ')
+})
+test('リスト: 同一表示キーでも別商品IDの絵柄は「選択中を追加」で落とさない', () => {
+  const listItems = cardsToItems([dragonCollisionCards[0]])
+  const adds = computeAdds(listItems, dragonCollisionCards, dragonCollisionCards)
+  assert.equal(adds.length, 1)
+  assert.equal(adds[0].productId, dragonCollisionCards[1].productId)
 })
 test('リスト: 全て登録済みなら追加0件', () => {
   const listItems = cardsToItems([sampleCards[0], sampleCards[1]])
@@ -731,6 +842,19 @@ function buildNewWorkbook() {
     'ヴァイス': [NEW_HEAD,
       ['pid-w1', '“〈刻々帝〉”狂三', 'PSA10', 'デート・ア・ライブ', 'DAL/WE33-004SP', 'SP', 'https://img/w1.png', '9', '151,980'],
     ],
+    'ドラゴンボール': [NEW_HEAD,
+      [
+        '716bd279-624f-4ee4-bceb-c9b69805f826',
+        'エナジーマーカー',
+        'PSA10',
+        'MANGA BOOSTER 01[SB01]',
+        'E-48',
+        '☆',
+        'https://img/db-e48.png',
+        '15',
+        '494,700',
+      ],
+    ],
   }
   for (const [name, rows] of Object.entries(sheets)) {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name)
@@ -762,7 +886,7 @@ test('新形式: 名称/リスト番号/募集数/税込価格/商品IDを正し
   assert.equal(c.id, 'pid-x', '商品IDをidに採用（安定）')
 })
 
-test('新形式: 1ファイルから5ジャンル一括パース（旧裏の新シート名・ヴァイスも拾う）', async () => {
+test('新形式: 1ファイルから最大6ジャンルを一括パースしドラゴンボールの9列を読む', async () => {
   const file = writeFile(buildNewWorkbook())
   const res = await parseExcelAllGenres(file)
   assert.equal(res.pokemon.total, 2)
@@ -771,6 +895,27 @@ test('新形式: 1ファイルから5ジャンル一括パース（旧裏の新�
   assert.equal(res.onepiece.total, 1)
   assert.equal(res.yugioh.total, 1)
   assert.equal(res.weiss.total, 1, 'ヴァイスも新形式で読む')
+  assert.equal(res.dragonball.total, 1)
+  assert.deepEqual(res.dragonball.cards[0], {
+    id: '716bd279-624f-4ee4-bceb-c9b69805f826',
+    productId: '716bd279-624f-4ee4-bceb-c9b69805f826',
+    genre: 'dragonball',
+    gameType: 'dragonball',
+    name: 'エナジーマーカー',
+    listNo: 'E-48',
+    type: 'PSA10',
+    expansion: 'MANGA BOOSTER 01[SB01]',
+    rarity: '☆',
+    imageUrl: 'https://img/db-e48.png',
+    reqCount: 15,
+    basePrice: 494700,
+    tag: 'MANGA BOOSTER 01[SB01] ☆ PSA10',
+    selected: false,
+  })
+
+  const single = await parseExcelSingleGenre(file, 'dragonball')
+  assert.equal(single.sheetName, 'ドラゴンボール')
+  assert.equal(single.total, 1)
 })
 
 test('移行: 旧リスト（名称一体型・商品IDなし）が新データへ引き継がれる', () => {

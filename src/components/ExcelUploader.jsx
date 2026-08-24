@@ -110,7 +110,7 @@ export default function ExcelUploader({
         </p>
         <p className="text-[10px] text-[#8c95a4] mt-1">
           {inputSource === INPUT_SOURCES.VAULT
-            ? 'パワン: 1ファイルで5ジャンル一括読み込み'
+            ? 'パワン: 1ファイルで最大6ジャンル一括読み込み'
             : 'とんとん: ポケモン／ワンピースの単一シート'}
         </p>
       </div>

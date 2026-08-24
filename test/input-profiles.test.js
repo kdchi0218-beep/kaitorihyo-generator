@@ -33,13 +33,22 @@ test('とんとん総合版: とんとん形式を第一選択肢にする', () 
   assert.equal(INPUT_SOURCE_OPTIONS[0].value, INPUT_SOURCES.TONTON)
   assert.equal(INPUT_SOURCE_OPTIONS[1].value, INPUT_SOURCES.VAULT)
   assert.equal(INPUT_SOURCE_OPTIONS[1].label, 'パワン形式')
+  assert.equal(INPUT_SOURCE_OPTIONS[1].description, '1ファイルから最大6ジャンルを一括取込')
 })
 
-test('入力切替: 利用者向けの取込表示をパワンへ統一する', async () => {
-  const source = await readFile(new URL('../src/components/ExcelUploader.jsx', import.meta.url), 'utf8')
-  assert.match(source, /パワン新形式/)
-  assert.match(source, /パワン: 1ファイルで5ジャンル一括読み込み/)
-  assert.doesNotMatch(source, /Vault(?:新形式|旧形式|形式不明|: 1ファイル)/)
+test('入力切替: パワンはドラゴンボールを含む最大6ジャンルと案内する', async () => {
+  const [uploader, help, usage] = await Promise.all([
+    readFile(new URL('../src/components/ExcelUploader.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/lib/helpContent.js', import.meta.url), 'utf8'),
+    readFile(new URL('../docs/USAGE.md', import.meta.url), 'utf8'),
+  ])
+  assert.match(uploader, /パワン新形式/)
+  assert.match(uploader, /パワン: 1ファイルで最大6ジャンル一括読み込み/)
+  assert.match(help, /ドラゴンボール/)
+  assert.match(help, /最大6ジャンル/)
+  assert.match(usage, /ドラゴンボール/)
+  assert.match(usage, /最大6ジャンル/)
+  assert.doesNotMatch(uploader, /Vault(?:新形式|旧形式|形式不明|: 1ファイル)/)
 })
 
 test('リスト機能: パワン形式でだけ有効にする', async () => {
@@ -65,7 +74,7 @@ test('リスト機能: パワン形式でだけ有効にする', async () => {
   assert.match(usage, /定番リスト[^。\n]*パワン形式|パワン形式[^。\n]*定番リスト/)
 })
 
-test('入力モード: とんとんと1ジャンル、パワンと5ジャンルを同じ選択中状態に混ぜない', async () => {
+test('入力モード: とんとんと1ジャンル、パワンと最大6ジャンルを同じ選択中状態に混ぜない', async () => {
   const [app, sidebar, tabs, uploader] = await Promise.all([
     readFile(new URL('../src/App.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/components/Sidebar.jsx', import.meta.url), 'utf8'),
@@ -177,16 +186,23 @@ test('入力切替: とんとん形式のExcelは該当ジャンルだけを返�
   assert.equal(result.pokemon.inputSource, INPUT_SOURCES.TONTON)
 })
 
-test('入力切替: パワン形式は既存の5ジャンル一括取込を維持する', async () => {
+test('入力切替: パワン形式はドラゴンボールを含む最大6ジャンルを一括取込する', async () => {
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
     ['ガチャ選択肢名称', '種別', 'list_no', '画像', '仕入れ依頼数', '納品希望価格'],
     ['ピカチュウ', 'PSA10', '001', '', 1, 10000],
   ]), 'ポケモン')
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+    ['商品ID', '名称', '種別', 'エキスパンション', 'リスト番号', 'レアリティ', '画像', '募集数', '納品希望価格（税込）'],
+    ['db-001', 'エナジーマーカー', 'PSA10', 'MANGA BOOSTER 01[SB01]', 'E-48', '☆', '', 15, '494,700'],
+  ]), 'ドラゴンボール')
 
   const result = await parseInputFile(writeFile(workbook), INPUT_SOURCES.VAULT)
   assert.equal(result.pokemon.cards.length, 1)
   assert.equal(result.pokemon.inputSource, INPUT_SOURCES.VAULT)
+  assert.equal(result.dragonball.cards.length, 1)
+  assert.equal(result.dragonball.cards[0].gameType, 'dragonball')
+  assert.equal(result.dragonball.inputSource, INPUT_SOURCES.VAULT)
   assert.equal(result.onepiece.notFound, true)
 })
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   listCardLists, createCardList, saveCardListItems, deleteCardList,
-  applyList, applyListWithMissing, mergeMissingIntoSelection, applyManualPricesToItems, detectRenamedCards, resolveItems, cardsToItems, cardKey, itemKey, baseKey, dedupeItems, enrichItems, copyCardListToStore, tokyoDateKey,
+  applyList, applyListWithMissing, mergeMissingIntoSelection, applyManualPricesToItems, detectRenamedCards, resolveItems, cardsToItems, identityKey, listedKeysForItems, dedupeItems, enrichItems, copyCardListToStore, tokyoDateKey,
 } from '../lib/cardLists.js'
 
 // 定番リストの中身をCSV文字列に変換（保存順・今日のデータでの解決結果つき）
@@ -136,13 +136,10 @@ export default function CardListPanel({ genre, allCards, cards, setCards, storeI
     if (!onListedKeysChange) return
     const keys = new Set()
     for (const l of lists) {
-      for (const it of (l.items || [])) {
-        keys.add(itemKey(it))
-        keys.add(baseKey(it))   // レアリティ有無の差を吸収
-      }
+      for (const key of listedKeysForItems(l.items || [], allCards)) keys.add(key)
     }
     onListedKeysChange(keys)
-  }, [lists, onListedKeysChange])
+  }, [lists, allCards, onListedKeysChange])
 
   const activeList = lists.find(l => l.id === activeId)
   const note = (type, message) => setMsg({ type, message })
@@ -281,7 +278,10 @@ export default function CardListPanel({ genre, allCards, cards, setCards, storeI
     const listIds = new Set(applyList(activeList.items || [], allCards).map(c => c.id))
     const seenKey = new Set()
     const adds = cardsToItems(
-      cards.filter(c => !listIds.has(c.id) && !seenKey.has(cardKey(c)) && seenKey.add(cardKey(c)))
+      cards.filter(c => {
+        const key = identityKey(c)
+        return !listIds.has(c.id) && !seenKey.has(key) && seenKey.add(key)
+      })
     )
     if (adds.length === 0) { note('success', '追加するものはありません（選択中は全て登録済み）'); return }
     setBusy(true)

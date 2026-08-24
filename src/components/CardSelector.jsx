@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { cardKey, baseKey, tokyoDateKey } from '../lib/cardKeys.js'
+import { isCardListed, tokyoDateKey } from '../lib/cardKeys.js'
 import { usesDailyPreviousPrice } from '../lib/genres.js'
 import { moveBlockById } from '../lib/reorder.js'
 
@@ -14,7 +14,7 @@ export default function CardSelector({ allCards, cards, setCards, setAllCards, l
   const [unlistedOnly, setUnlistedOnly] = useState(false)
 
   // どの定番リストにも入っていないカードか（新着カードの発見用）
-  const isUnlisted = (c) => listedKeys && !listedKeys.has(cardKey(c)) && !listedKeys.has(baseKey(c))
+  const isUnlisted = (c) => listedKeys && !isCardListed(c, listedKeys)
   const unlistedCount = useMemo(
     () => (listedKeys ? allCards.filter(isUnlisted).length : 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps

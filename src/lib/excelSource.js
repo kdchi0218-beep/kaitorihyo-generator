@@ -1,4 +1,4 @@
-// Excelアップロード → 1ファイルから5ジャンルを一括パース
+// Excelアップロード → 1ファイルから最大6ジャンルを一括パース
 // 毎日シート(ファイル)が変わる運用に対応：その日のExcelを1回上げれば全ジャンル読める。
 
 import { GENRES, GENRE_BY_KEY, detectFormat } from './genres.js'
@@ -63,7 +63,7 @@ export async function parseExcelAllGenres(file) {
   }
 
   // xlsxライブラリは単なるテキストでもSheet1のワークブックとして読める。
-  // その状態を5ジャンル全0件の正常取込と扱うと既存データを消すため、
+  // その状態を全対応ジャンル0件の正常取込と扱うと既存データを消すため、
   // 対応シートが無い、または対応シートを1枚も解析できない場合は取込失敗にする。
   if (matchedSheetCount === 0) {
     throw new Error('パワン形式の対応ジャンルシートが見つかりません')

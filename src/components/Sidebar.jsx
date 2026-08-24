@@ -75,7 +75,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* とんとんは読込済みの1ジャンル、パワンは5ジャンルだけを表示 */}
+      {/* とんとんは読込済みの1ジャンル、パワンは最大6ジャンルだけを表示 */}
       <div className="px-4 py-2 border-b border-[#e0e4ea] bg-[#f8f9fb] sticky top-[92px] z-10">
         <GenreTabs
           activeGenre={activeGenre}

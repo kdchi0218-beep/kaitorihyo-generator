@@ -2,7 +2,7 @@
 
 ## 構成
 
-- とんとん形式（単一シート）とパワン形式（5ジャンル一括・内部はVault互換パーサー）をこのアプリで扱う。Vault専用の `vault-kaitori-generator.vercel.app` は変更しない。
+- とんとん形式（ポケモン／ワンピースの単一シート）とパワン形式（ドラゴンボールを含む最大6ジャンル一括・内部はVault互換パーサー）をこのアプリで扱う。Vault専用の `vault-kaitori-generator.vercel.app` は変更しない。
 - 本番: `https://tonton-kaitori-generator.vercel.app`
 - ホスティング/BFF: Vercel、データ: とんとん専用Supabase（Tokyo）。VaultとSupabaseプロジェクトを共有しない。
 - ブラウザはSupabaseへ直接アクセスしない。ログイン、全データCRUD、画像取得は同一オリジンのVercel BFF（`/api/*`）経由。

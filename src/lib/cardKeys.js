@@ -28,6 +28,17 @@ export function itemKey(it) {
   return it.rarity ? `${baseKey(it)}|${it.rarity}` : baseKey(it)
 }
 
+const productIdOf = (value) => String(value?.productId || '').trim()
+
+/**
+ * 商品IDを持つ新形式カードは商品ID、旧形式カードは従来の表示キーで識別する。
+ * 同じ番号・名前・レアリティでも絵柄が異なる商品を、全処理で一貫して区別するための共通キー。
+ */
+export function identityKey(value) {
+  const productId = productIdOf(value)
+  return productId ? `product:${productId}` : itemKey(value)
+}
+
 /** Asia/Tokyo における日付を YYYY-MM-DD で返す（ローカル/UTC 時刻には依存しない）。 */
 export function tokyoDateKey(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -103,7 +114,8 @@ export function resolveItems(items, allCards) {
   const byAnchor = new Map()   // 型番+種別（名前非依存）。型番が空の項目はアンカー対象外＝BOX等の誤結合防止
   const push = (m, k, c) => { if (!m.has(k)) m.set(k, []); m.get(k).push(c) }
   for (const c of allCards) {
-    if (c.productId) push(byProduct, c.productId, c)
+    const productId = productIdOf(c)
+    if (productId) push(byProduct, productId, c)
     push(byFull, cardKey(c), c)
     push(byBase, baseKey(c), c)
     if (c.listNo) push(byAnchor, anchorKey(c), c)
@@ -113,15 +125,21 @@ export function resolveItems(items, allCards) {
   return (items || []).map(it => {
     let c
     // ① 商品ID（新形式で保存済みの項目）＝最も確実
-    if (it.productId) c = pickUnused(byProduct.get(it.productId))
-    // ② 完全キー（名前+レア一致）＝既存挙動
-    if (!c) c = pickUnused(byFull.get(itemKey(it)))
-    // ③ ベースキー（名前一致）＝既存フォールバック（レア未保存の旧リスト・同名BOX等）
-    if (!c) c = pickUnused(byBase.get(baseKey(it)))
-    // ④ 型番+種別アンカー救済（新旧で名称が変わったカードを型番で拾う。型番ありのみ）
-    if (!c && it.listNo) {
-      const remain = (byAnchor.get(anchorKey(it)) || []).filter(x => !usedIds.has(x.id))
-      c = disambiguate(remain, it)
+    const productId = productIdOf(it)
+    if (productId) {
+      c = pickUnused(byProduct.get(productId))
+      // 商品IDが当日データに無い場合、同名・同番号の別絵柄へは置換しない。
+      if (!c) return null
+    } else {
+      // ② 完全キー（名前+レア一致）＝既存挙動
+      c = pickUnused(byFull.get(itemKey(it)))
+      // ③ ベースキー（名前一致）＝既存フォールバック（レア未保存の旧リスト・同名BOX等）
+      if (!c) c = pickUnused(byBase.get(baseKey(it)))
+      // ④ 型番+種別アンカー救済（新旧で名称が変わったカードを型番で拾う。型番ありのみ）
+      if (!c && it.listNo) {
+        const remain = (byAnchor.get(anchorKey(it)) || []).filter(x => !usedIds.has(x.id))
+        c = disambiguate(remain, it)
+      }
     }
     if (!c) return null                                // 在庫切れ（今日のデータに無い／曖昧で確定不可）
     usedIds.add(c.id)
@@ -168,17 +186,18 @@ export function enrichItems(items, allCards) {
  */
 export function mergeMissingIntoSelection(selected, fullApplied) {
   const next = [...(selected || [])]
-  const haveKeys = new Set(next.map(c => cardKey(c)))
+  const haveKeys = new Set(next.map(identityKey))
   let ptr = 0
   for (const c of fullApplied || []) {
     if (c.missing) {
-      if (haveKeys.has(cardKey(c))) {
+      const key = identityKey(c)
+      if (haveKeys.has(key)) {
         // 既に同じカードが居る（前回のゴースト等）→ その位置までポインタを進める
-        const idx = next.findIndex((x, i) => i >= ptr && cardKey(x) === cardKey(c))
+        const idx = next.findIndex((x, i) => i >= ptr && identityKey(x) === key)
         if (idx >= 0) ptr = idx + 1
       } else {
         next.splice(ptr, 0, c)
-        haveKeys.add(cardKey(c))
+        haveKeys.add(key)
         ptr++
       }
     } else {
@@ -199,11 +218,11 @@ export function mergeMissingIntoSelection(selected, fullApplied) {
  */
 export function applyManualPricesToItems(items, ghosts, { editedOn } = {}) {
   const byKey = new Map()
-  for (const g of ghosts || []) byKey.set(cardKey(g), g)
+  for (const g of ghosts || []) byKey.set(identityKey(g), g)
   let changed = false
   const matchedGhosts = new Set()
   const next = (items || []).map(it => {
-    const g = byKey.get(itemKey(it))
+    const g = byKey.get(identityKey(it))
     if (!g) return it
     matchedGhosts.add(g)
     const out = { ...it }
@@ -264,6 +283,7 @@ export function detectRenamedCards(items, allCards) {
   const suspects = []
   ;(items || []).forEach((it, index) => {
     if (resolved[index]) return                  // 解決済みは問題なし
+    if (productIdOf(it)) return                  // 商品ID付きは別商品への名前変更候補を出さない
     if (!it.listNo) return                       // 型番なしは検知不能
     const candidates = (allCards || []).filter(c =>
       c.listNo === it.listNo &&
@@ -281,15 +301,69 @@ export function detectRenamedCards(items, allCards) {
   return suspects
 }
 
-/** リスト項目の完全重複（同一キー）を除去する（先勝ち・順序保持） */
+/**
+ * リスト項目の完全重複を除去する（同じ識別子は先勝ち・順序保持）。
+ * 新形式の商品IDがある場合は旧形式の曖昧な同表示キーより優先する。同じ番号・名前・
+ * レアリティでも、別商品IDの絵柄違いを持つジャンルで片方を落とさないため。
+ */
 export function dedupeItems(items) {
-  const seen = new Set()
-  return (items || []).filter(it => {
-    const k = itemKey(it)
-    if (seen.has(k)) return false
-    seen.add(k)
+  const source = items || []
+  // 同一表示キーに商品ID付き項目があれば、識別不能な旧項目は新項目へ統合する。
+  // 先に全体を調べるため、旧→新 / 新→旧の並び順に結果が左右されない。
+  const productBackedItemKeys = new Set(
+    source.filter(it => productIdOf(it)).map(itemKey)
+  )
+  const productBackedBaseKeys = new Set(
+    source.filter(it => productIdOf(it)).map(baseKey)
+  )
+  const seenProductIds = new Set()
+  const seenLegacyKeys = new Set()
+  return source.filter(it => {
+    const productId = productIdOf(it)
+    if (productId) {
+      if (seenProductIds.has(productId)) return false
+      seenProductIds.add(productId)
+      return true
+    }
+    const key = itemKey(it)
+    const supersededByProduct = productBackedItemKeys.has(key) || (
+      !it.rarity && productBackedBaseKeys.has(baseKey(it))
+    )
+    if (supersededByProduct || seenLegacyKeys.has(key)) return false
+    seenLegacyKeys.add(key)
     return true
   })
+}
+
+/**
+ * リスト項目が現在のカード群で覆う識別キー集合を返す。
+ * 旧項目も一度 resolve して実カードの商品IDへ寄せるため、同一表示キーの別絵柄まで
+ * 「登録済み」と誤判定しない。
+ */
+export function listedKeysForItems(items, allCards) {
+  const source = items || []
+  const resolved = resolveItems(source, allCards || [])
+  const keys = new Set()
+  source.forEach((it, index) => {
+    const card = resolved[index]
+    if (card) {
+      keys.add(identityKey(card))
+      if (!productIdOf(card)) keys.add(baseKey(card))
+    } else if (productIdOf(it)) {
+      keys.add(identityKey(it))
+    } else {
+      keys.add(itemKey(it))
+      keys.add(baseKey(it))
+    }
+  })
+  return keys
+}
+
+/** CardSelector の「どのリストにも入っていない」判定。 */
+export function isCardListed(card, listedKeys) {
+  if (!listedKeys) return false
+  if (productIdOf(card)) return listedKeys.has(identityKey(card))
+  return listedKeys.has(cardKey(card)) || listedKeys.has(baseKey(card))
 }
 
 /** カード配列 → リスト保存用の最小項目に変換（登録順保持・弾/レア/商品ID/画像URL/基準価格があれば保存） */
@@ -332,11 +406,13 @@ export function applyListWithMissing(items, allCards, priceOf = (b) => b, option
       (!it.manualEditedOn && base > 0)
     )
     return {
-      id: `missing_${i}_${itemKey(it)}`,   // 同一適用内で一意（i入りなので重複しない）
+      id: `missing_${i}_${identityKey(it)}`,   // 同一適用内で一意（i入りなので重複しない）
+      productId: productIdOf(it),
       name: it.name || '',
       listNo: it.listNo || '',
       type: it.type || '',
       rarity: it.rarity || '',
+      expansion: it.expansion || '',
       imageUrl: it.img || null,
       basePrice: base,
       // 手動修正済みならその価格/文言を優先表示（前回価格マークは付けない）

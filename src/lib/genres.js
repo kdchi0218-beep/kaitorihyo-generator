@@ -1,4 +1,4 @@
-// 統合買取表ジェネレーター: 共通5ジャンル定義
+// 統合買取表ジェネレーター: パワン形式の共通6ジャンル定義
 // 元データ（Googleスプシ各タブ）の列構成差異をここで吸収する。
 // 列はヘッダー名で検出するため、旧形式(6/8列・名称一体型)と
 // 新形式(9列・商品ID付き・弾/レア分離型)を同じ関数で自動判別して扱える。
@@ -52,6 +52,15 @@ export const GENRES = [
     gameType: 'weiss',
     placeholder: './card-back-weiss.jpg',
     sheetHint: 'ヴァイス',
+    hasExpansion: true,
+    hasRarity: true,
+  },
+  {
+    key: 'dragonball',
+    label: 'ドラゴンボール',
+    gameType: 'dragonball',
+    placeholder: './card-back-dragonball.jpg',
+    sheetHint: 'ドラゴンボール',
     hasExpansion: true,
     hasRarity: true,
   },

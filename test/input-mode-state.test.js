@@ -62,7 +62,7 @@ function pawanResult(nonEmpty = {}) {
   }))
 }
 
-test('パワン5ジャンル状態からとんとんポケモンを取込むと、旧データを全消去してポケモンだけを表示する', () => {
+test('パワン最大6ジャンル状態からとんとんポケモンを取込むと、旧データを全消去してポケモンだけを表示する', () => {
   const next = applyImportedWorkspace(
     filledPawanWorkspace(),
     INPUT_SOURCES.TONTON,
@@ -84,7 +84,7 @@ test('パワン5ジャンル状態からとんとんポケモンを取込むと�
   }
 })
 
-test('とんとんワンピース状態からパワンを取込むと、全5ジャンルだけを表示し最初の非空ジャンルを開く', () => {
+test('とんとんワンピース状態からパワンを取込むと、最大6ジャンルだけを表示し最初の非空ジャンルを開く', () => {
   const previous = workspace(INPUT_SOURCES.TONTON, {
     ...Object.fromEntries(PAWAN_KEYS.map(key => [key, genre()])),
     onepiece: genre([card('tonton-luffy')], [card('tonton-selected-luffy', { priceManual: true })], {
@@ -110,6 +110,60 @@ test('とんとんワンピース状態からパワンを取込むと、全5ジ�
   for (const key of ['pokemon', 'pokemon_old', 'onepiece']) {
     assert.deepEqual(next.genreData[key].selected, [], `${key} は空の今回データで置換する`)
   }
+})
+
+test('ドラゴンボールはパワンの6番目のタブで、とんとんのカード一覧と選択中に混ざらない', () => {
+  const withTonton = applyImportedWorkspaceToProfile(
+    createInputModeProfiles(),
+    INPUT_SOURCES.TONTON,
+    { pokemon: { cards: [card('tonton-pikachu')], total: 1 } },
+    { sheetUrl: 'excel:tonton:pokemon.xlsx', loadedAt: 100 },
+  )
+  const withDragonball = applyImportedWorkspaceToProfile(
+    selectInputModeProfile(withTonton, INPUT_SOURCES.VAULT),
+    INPUT_SOURCES.VAULT,
+    {
+      ...pawanResult(),
+      dragonball: { cards: [card('pawan-energy-marker', { genre: 'dragonball' })], total: 1 },
+    },
+    { sheetUrl: 'excel:vault:takeshi.xlsx', loadedAt: 200 },
+  )
+
+  const pawan = getSelectedInputWorkspace(withDragonball)
+  assert.deepEqual(pawan.visibleGenreKeys, [
+    'pokemon',
+    'pokemon_old',
+    'onepiece',
+    'yugioh',
+    'weiss',
+    'dragonball',
+  ])
+  assert.equal(pawan.activeGenre, 'dragonball')
+  assert.deepEqual(pawan.genreData.dragonball.allCards.map(({ id }) => id), ['pawan-energy-marker'])
+
+  const withSelectedDragonball = updateSelectedInputWorkspace(withDragonball, current => ({
+    ...current,
+    genreData: {
+      ...current.genreData,
+      dragonball: {
+        ...current.genreData.dragonball,
+        selected: [current.genreData.dragonball.allCards[0]],
+      },
+    },
+  }))
+  const tonton = getSelectedInputWorkspace(
+    selectInputModeProfile(withSelectedDragonball, INPUT_SOURCES.TONTON),
+  )
+  assert.deepEqual(tonton.visibleGenreKeys, ['pokemon'])
+  assert.deepEqual(tonton.genreData.pokemon.allCards.map(({ id }) => id), ['tonton-pikachu'])
+  assert.deepEqual(tonton.genreData.dragonball.allCards, [])
+  assert.deepEqual(tonton.genreData.dragonball.selected, [])
+
+  const returnedPawan = getSelectedInputWorkspace(
+    selectInputModeProfile(withSelectedDragonball, INPUT_SOURCES.VAULT),
+  )
+  assert.equal(returnedPawan.activeGenre, 'dragonball')
+  assert.deepEqual(returnedPawan.genreData.dragonball.selected.map(({ id }) => id), ['pawan-energy-marker'])
 })
 
 test('同じ形式を再取込しても、前回の選択状態・手入力価格・読込情報を残さない', () => {
@@ -213,6 +267,50 @@ test('旧保存形式が混在していても、最後に読み込んだ入力�
   assert.deepEqual(restored.genreData.onepiece.allCards.map(({ id }) => id), ['new-tonton-luffy'])
   assert.deepEqual(restored.genreData.pokemon.allCards, [])
   assert.deepEqual(restored.genreData.weiss.selected, [])
+})
+
+test('ドラゴンボール追加前のパワン保存値は、既存5ジャンルを保ったまま空の6番目を補う', () => {
+  const restored = hydrateInputWorkspace({
+    inputSource: INPUT_SOURCES.VAULT,
+    visibleGenreKeys: ['pokemon', 'pokemon_old', 'onepiece', 'yugioh', 'weiss'],
+    activeGenre: 'weiss',
+    genreData: {
+      pokemon: genre([card('legacy-pikachu')]),
+      pokemon_old: genre(),
+      onepiece: genre(),
+      yugioh: genre(),
+      weiss: genre([card('legacy-weiss')]),
+    },
+  })
+
+  assert.deepEqual(restored.visibleGenreKeys, PAWAN_KEYS)
+  assert.equal(restored.activeGenre, 'weiss')
+  assert.deepEqual(restored.genreData.pokemon.allCards.map(({ id }) => id), ['legacy-pikachu'])
+  assert.deepEqual(restored.genreData.weiss.allCards.map(({ id }) => id), ['legacy-weiss'])
+  assert.deepEqual(restored.genreData.dragonball, genre())
+})
+
+test('ドラゴンボールシートのない次回パワン取込は、前回のドラゴンボール選択を残さない', () => {
+  const previous = applyImportedWorkspace(
+    createEmptyInputWorkspace(INPUT_SOURCES.VAULT),
+    INPUT_SOURCES.VAULT,
+    pawanResult({ dragonball: [card('old-dragonball')] }),
+    { sheetUrl: 'excel:vault:with-dragonball.xlsx', loadedAt: 100 },
+  )
+  previous.genreData.dragonball.selected = [previous.genreData.dragonball.allCards[0]]
+
+  const next = applyImportedWorkspace(
+    previous,
+    INPUT_SOURCES.VAULT,
+    pawanResult({ pokemon: [card('new-pikachu')] }),
+    { sheetUrl: 'excel:vault:without-dragonball.xlsx', loadedAt: 200 },
+  )
+
+  assert.deepEqual(next.genreData.pokemon.allCards.map(({ id }) => id), ['new-pikachu'])
+  assert.deepEqual(next.genreData.dragonball.allCards, [])
+  assert.deepEqual(next.genreData.dragonball.selected, [])
+  assert.equal(next.genreData.dragonball.sheetUrl, '')
+  assert.equal(next.genreData.dragonball.loadedAt, null)
 })
 
 test('新規・壊れた保存値は空のとんとんワークスペースとして安全に開く', () => {

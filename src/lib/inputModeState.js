@@ -152,7 +152,7 @@ export function hydrateInputWorkspace(raw) {
     })
   }
 
-  // 旧形式は5ジャンルのデータだけだったため、最新の読込マーカーから形式を復元する。
+  // 旧形式は当時の対応ジャンルだけだったため、最新の読込マーカーから形式を復元する。
   return inferLegacyWorkspace(raw)
 }
 
