@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { createStore, deleteStore, createUserInStore } from '../lib/storeSync.js'
 import { generateAccountPassword, isValidAccountPasswordLength } from '../lib/accountPassword.js'
 import { browserAdminApi, usersForStore } from '../lib/browserAdmin.js'
+import { nextFocusableIndex } from '../lib/helpFocus.js'
 import HelpGuide from './HelpGuide.jsx'
 
 function formatDate(value) {
@@ -10,8 +12,8 @@ function formatDate(value) {
     : '—'
 }
 
-function BrowserUserRow({ user, currentEmail, busy, onReset }) {
-  const isCurrent = user.email === currentEmail
+function BrowserUserRow({ user, currentEmail, busy, onReset, onDelete }) {
+  const isCurrent = String(user.email).toLowerCase() === String(currentEmail).toLowerCase()
   return (
     <div className="py-2.5 flex flex-wrap items-center gap-3">
       <div className="min-w-0 flex-1">
@@ -35,7 +37,148 @@ function BrowserUserRow({ user, currentEmail, busy, onReset }) {
         title={isCurrent ? '別の管理者から解除してください' : ''}
         className="text-[11px] px-3 py-1.5 rounded border border-amber-200 text-amber-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
       >端末ロック解除</button>
+      {onDelete && (
+        <button
+          onClick={() => onDelete(user)}
+          disabled={busy || isCurrent}
+          className="text-[11px] px-3 py-1.5 rounded border border-red-200 text-red-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >アカウント削除</button>
+      )}
     </div>
+  )
+}
+
+function DeleteAccountDialog({ target, email, reason, error, busy, onEmailChange, onReasonChange, onCancel, onConfirm }) {
+  const dialogRef = useRef(null)
+  const emailRef = useRef(null)
+  const emailMatches = email.trim().toLowerCase() === target.email.trim().toLowerCase()
+  const trimmedReason = reason.trim()
+  const canDelete = emailMatches && trimmedReason.length >= 2 && trimmedReason.length <= 200 && !busy
+
+  useEffect(() => {
+    const opener = document.activeElement
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    emailRef.current?.focus({ preventScroll: true })
+    return () => {
+      document.body.style.overflow = originalOverflow
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
+    }
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = event => {
+      if (event.key === 'Escape' && !busy) {
+        onCancel()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const focusable = [...(dialogRef.current?.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) || [])]
+      if (focusable.length === 0) {
+        event.preventDefault()
+        dialogRef.current?.focus()
+        return
+      }
+      const nextIndex = nextFocusableIndex(focusable.indexOf(document.activeElement), focusable.length, event.shiftKey)
+      if (nextIndex < 0) return
+      event.preventDefault()
+      focusable[nextIndex].focus()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [busy, onCancel])
+
+  useEffect(() => {
+    if (busy) dialogRef.current?.focus({ preventScroll: true })
+  }, [busy])
+
+  const storesLabel = target.stores?.length ? target.stores.join('、') : '所属店舗すべて'
+
+  return createPortal(
+    <div
+      role="presentation"
+      className="p-3 sm:p-5"
+      style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15,23,42,0.62)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onMouseDown={event => { if (!busy && event.target === event.currentTarget) onCancel() }}
+    >
+      <section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-account-title"
+        aria-describedby="delete-account-description"
+        tabIndex={-1}
+        className="w-full max-w-lg max-h-[92svh] bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col"
+      >
+        <header className="px-5 py-4 border-b border-red-100 bg-red-50">
+          <h2 id="delete-account-title" className="text-base font-bold text-red-700">アカウントを完全に削除</h2>
+          <p id="delete-account-description" className="text-xs text-red-700 mt-1.5 leading-5">
+            この操作は元に戻せません。ログイン情報・端末固定・すべての店舗所属が削除されます。
+          </p>
+        </header>
+
+        <form className="min-h-0 overflow-y-auto" onSubmit={event => { event.preventDefault(); if (canDelete) onConfirm() }}>
+          <div className="px-5 py-5 space-y-4">
+            {error && (
+              <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">
+                {error}
+              </p>
+            )}
+            <div className="rounded-lg border border-[#e0e4ea] bg-[#f8f9fb] px-3 py-3 text-xs text-[#4b5870]">
+              <p><span className="font-semibold">対象:</span> {target.email}</p>
+              <p className="mt-1"><span className="font-semibold">所属:</span> {storesLabel}</p>
+              <p className="mt-2 text-red-600">どの店舗欄から操作しても、上記アカウントそのものを全店舗から削除します。</p>
+            </div>
+
+            <div>
+              <label htmlFor="delete-account-email" className="block text-xs font-semibold text-[#1e3a5f] mb-1.5">
+                確認のため「{target.email}」を入力
+              </label>
+              <input
+                ref={emailRef}
+                id="delete-account-email"
+                type="email"
+                value={email}
+                onChange={event => onEmailChange(event.target.value)}
+                autoComplete="off"
+                disabled={busy}
+                className="w-full text-sm px-3 py-2.5 border border-[#d0d5dd] rounded-lg outline-none focus:border-red-500 disabled:bg-[#f3f4f6]"
+              />
+              {email && !emailMatches && <p className="text-[11px] text-red-600 mt-1">メールアドレスが一致しません。</p>}
+            </div>
+
+            <div>
+              <label htmlFor="delete-account-reason" className="block text-xs font-semibold text-[#1e3a5f] mb-1.5">削除理由（2〜200文字）</label>
+              <textarea
+                id="delete-account-reason"
+                value={reason}
+                onChange={event => onReasonChange(event.target.value)}
+                maxLength={200}
+                disabled={busy}
+                placeholder="例: 退職のため"
+                rows={3}
+                className="w-full resize-y text-sm px-3 py-2.5 border border-[#d0d5dd] rounded-lg outline-none focus:border-red-500 disabled:bg-[#f3f4f6]"
+              />
+              <p className="text-[10px] text-[#8c95a4] text-right mt-1">{reason.length} / 200</p>
+            </div>
+          </div>
+
+          <footer className="flex justify-end gap-2 px-5 py-4 border-t border-[#e0e4ea] bg-[#fafbfc]">
+            <button type="button" onClick={onCancel} disabled={busy}
+              className="text-sm px-4 py-2 rounded-lg border border-[#d0d5dd] text-[#5a6577] cursor-pointer disabled:opacity-50">
+              キャンセル
+            </button>
+            <button type="submit" disabled={!canDelete}
+              className="text-sm px-4 py-2 rounded-lg bg-red-600 text-white font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+              {busy ? '削除中...' : '完全に削除する'}
+            </button>
+          </footer>
+        </form>
+      </section>
+    </div>,
+    document.body,
   )
 }
 
@@ -46,13 +189,27 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
   const [memberForms, setMemberForms] = useState({}) // { storeId: {email} }
   const [browserUsers, setBrowserUsers] = useState([])
   const [browserLoading, setBrowserLoading] = useState(true)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteEmail, setDeleteEmail] = useState('')
+  const [deleteReason, setDeleteReason] = useState('')
+  const [deleteError, setDeleteError] = useState('')
+  const messageRef = useRef(null)
 
-  const note = (type, message) => setMsg({ type, message })
+  const note = (type, message, focus = false) => setMsg({ type, message, focus })
+
+  useEffect(() => {
+    if (msg?.focus) messageRef.current?.focus({ preventScroll: true })
+  }, [msg])
 
   const loadBrowserUsers = useCallback(async () => {
     setBrowserLoading(true)
-    try { setBrowserUsers(await browserAdminApi.list()) }
-    catch (error) { note('error', error.message) }
+    try {
+      setBrowserUsers(await browserAdminApi.list())
+      return null
+    } catch (error) {
+      note('error', error.message)
+      return error
+    }
     finally { setBrowserLoading(false) }
   }, [])
 
@@ -112,10 +269,54 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
     finally { setBusy(false) }
   }
 
+  const closeDeleteDialog = useCallback(() => {
+    setDeleteTarget(null)
+    setDeleteEmail('')
+    setDeleteReason('')
+    setDeleteError('')
+  }, [])
+
+  const openDeleteDialog = (user) => {
+    setDeleteTarget(user)
+    setDeleteEmail('')
+    setDeleteReason('')
+    setDeleteError('')
+    setMsg(null)
+  }
+
+  const handleDeleteUser = async () => {
+    if (!deleteTarget) return
+    if (deleteEmail.trim().toLowerCase() !== deleteTarget.email.trim().toLowerCase()) {
+      setDeleteError('確認用メールアドレスが一致しません')
+      return
+    }
+    const reason = deleteReason.trim()
+    if (reason.length < 2 || reason.length > 200) {
+      setDeleteError('削除理由は2〜200文字で入力してください')
+      return
+    }
+    setBusy(true); setMsg(null); setDeleteError('')
+    try {
+      await browserAdminApi.remove(deleteTarget.id, deleteTarget.email, reason)
+      const deletedEmail = deleteTarget.email
+      const deletedId = deleteTarget.id
+      setBrowserUsers(previous => previous.filter(user => user.id !== deletedId))
+      const reloadError = await loadBrowserUsers()
+      if (reloadError) {
+        note('error', `${deletedEmail} は削除しましたが、一覧の再読込に失敗しました。再読込してください。`, true)
+      } else {
+        note('success', `${deletedEmail} のアカウントを削除しました`, true)
+      }
+      closeDeleteDialog()
+    } catch (error) { setDeleteError(error.message) }
+    finally { setBusy(false) }
+  }
+
   const adminUsers = browserUsers.filter(user => user.isAdmin)
 
   return (
-    <div style={{ minHeight: '100vh', width: '100vw', background: '#eef1f6', overflow: 'auto' }}>
+    <>
+      <div style={{ minHeight: '100vh', width: '100vw', background: '#eef1f6', overflow: 'auto' }}>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 16px' }}>
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-bold text-[#1e3a5f]">とんとん 店舗・ユーザー管理</h1>
@@ -132,7 +333,8 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
         </div>
 
         {msg && (
-          <div className={`text-xs px-3 py-2 rounded mb-4 border ${
+          <div ref={messageRef} role={msg.type === 'success' ? 'status' : 'alert'} aria-live="polite" tabIndex={-1}
+            className={`text-xs px-3 py-2 rounded mb-4 border ${
             msg.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
           }`}>{msg.message}</div>
         )}
@@ -184,7 +386,8 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
                 ) : (
                   <div className="divide-y divide-[#edf0f4]">
                     {storeUsers.map(user => (
-                      <BrowserUserRow key={user.id} user={user} currentEmail={userEmail} busy={busy} onReset={handleResetBrowser} />
+                      <BrowserUserRow key={user.id} user={user} currentEmail={userEmail} busy={busy}
+                        onReset={handleResetBrowser} onDelete={openDeleteDialog} />
                     ))}
                   </div>
                 )}
@@ -240,6 +443,20 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
           )}
         </div>
       </div>
-    </div>
+      </div>
+      {deleteTarget && typeof document !== 'undefined' && (
+        <DeleteAccountDialog
+          target={deleteTarget}
+          email={deleteEmail}
+          reason={deleteReason}
+          error={deleteError}
+          busy={busy}
+          onEmailChange={value => { setDeleteEmail(value); setDeleteError('') }}
+          onReasonChange={value => { setDeleteReason(value); setDeleteError('') }}
+          onCancel={closeDeleteDialog}
+          onConfirm={handleDeleteUser}
+        />
+      )}
+    </>
   )
 }

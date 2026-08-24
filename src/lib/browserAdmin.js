@@ -34,6 +34,9 @@ export function createBrowserAdminApi(fetchImpl = globalThis.fetch) {
     reset(userId, reason) {
       return request('POST', { userId, reason })
     },
+    remove(userId, email, reason) {
+      return request('DELETE', { userId, email, reason })
+    },
   }
 }
 

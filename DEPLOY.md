@@ -13,6 +13,7 @@
 
 - 変更が必要なときは、管理画面の対象ユーザーで **「端末ロック解除」** を実行する。店舗ユーザーは各店舗カード、管理者は **「管理者ブラウザ固定」** から操作する。次回のパスワードログインで新しいブラウザへ固定される。
 - 管理者自身の解除は、**別の管理者**が行う。管理者を最低2人登録しておく（1人だけにしない）。
+- 通常店舗アカウントの廃止は、店舗カードの **「アカウント削除」** から行う。対象メールの再入力と理由が必須で、全店舗所属・端末固定・Authユーザーを完全削除する。管理者・自己・店舗未所属ユーザーはAPIでも拒否する。店舗設定・テンプレート・定番リスト・店舗画像は削除しない。
 - 緊急時に全管理者が入れない場合のみ、Supabase Dashboard → SQL Editorで対象ユーザーの有効な `browser_bindings` を `revoked_at` 付きで解除する。理由と実行者を `browser_binding_events` に残し、復旧直後に別の管理者を追加する。RLSの無効化、鍵の共有、テーブル削除はしない。
 
 ```sql
@@ -99,7 +100,7 @@ GAS: `~/Desktop/【codex】Mycompany-v2/.secretary/gas/kaitori/sheet-manager-v2.
 | 入力タイプ・Excel解析 | `src/lib/inputSources.js` / `src/lib/excelSource.js` / `src/lib/vaultParser.js` / `src/lib/tontonParser.js` |
 | 店舗データCRUD（BFF） | `src/lib/apiClient.js` / `src/lib/storeSync.js` / `api/data.js` |
 | ログイン・Cookieセッション | `src/lib/authApi.js` / `api/auth/*.js` / `api/_lib/browser-session.js` |
-| ブラウザ固定の管理 | `src/lib/browserAdmin.js` / `src/components/AdminPanel.jsx` / `api/admin/browser-users.js` |
+| ブラウザ固定・通常アカウント削除の管理 | `src/lib/browserAdmin.js` / `src/components/AdminPanel.jsx` / `api/admin/browser-users.js` |
 | 管理者によるユーザー作成 | `api/admin/create-user.js` |
 | private画像の配信 | `api/asset.js`（`store-assets` はprivate） |
 | CardRush API | `api/cardrush/*.js` / `api/_lib/cardrush-*.js` |
