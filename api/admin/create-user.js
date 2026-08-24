@@ -7,6 +7,7 @@ import {
   requireAdmin,
 } from '../_lib/browser-session.js'
 import { enforceSameOriginJson } from '../_lib/request-security.js'
+import { isValidAccountPasswordLength } from '../../src/lib/accountPassword.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SECRET = process.env.SUPABASE_SECRET_KEY
@@ -41,8 +42,8 @@ export function normalizeAccountRequest(input = {}) {
     throw new Error('有効なメールアドレスを入力してください')
   }
   if (!UUID_PATTERN.test(storeId)) throw new Error('店舗IDが正しくありません')
-  if (password.length < 12 || password.length > 128) {
-    throw new Error('パスワードは12〜128文字で入力してください')
+  if (!isValidAccountPasswordLength(password)) {
+    throw new Error('パスワードは8文字以上かつUTF-8で72バイト以下にしてください')
   }
   return { email, password, storeId }
 }
@@ -54,8 +55,26 @@ export async function provisionStoreUser({ email, password, storeId }, request =
   })
   if (!createRes.ok) {
     const detail = await createRes.text()
-    if (createRes.status === 422 || /exist/i.test(detail)) {
+    const payload = (() => {
+      try { return JSON.parse(detail) } catch { return {} }
+    })()
+    const errorCode = String(
+      payload?.error_code || (typeof payload?.code === 'string' ? payload.code : ''),
+    ).toLowerCase()
+    const errorMessage = String(payload?.message || payload?.msg || payload?.error_description || detail)
+    const isDuplicate = ['email_exists', 'user_already_exists'].includes(errorCode)
+      || /already[^\n]*(registered|exist)/i.test(errorMessage)
+    if (isDuplicate) {
       throw new AccountProvisionError(409, 'このメールは登録済みです。別のメールアドレスを使用してください')
+    }
+    const isPasswordError = errorCode === 'weak_password'
+      || (errorCode === 'validation_failed' && /password/i.test(errorMessage))
+      || /password/i.test(errorMessage)
+    if (isPasswordError) {
+      throw new AccountProvisionError(400, '認証サービスのパスワード要件を満たしていません。8文字以上で別のパスワードを入力してください')
+    }
+    if (createRes.status === 400 || createRes.status === 422) {
+      throw new AccountProvisionError(400, '入力内容が認証サービスの要件を満たしていません。メールアドレスとパスワードを確認してください')
     }
     console.error('Supabase user creation failed:', createRes.status, detail.slice(0, 200))
     throw new AccountProvisionError(502, 'ユーザー作成に失敗しました')

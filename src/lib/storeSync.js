@@ -1,6 +1,7 @@
 // 店舗データのクラウド同期レイヤー。
 // 認証済みの同一オリジンBFFだけを利用し、Supabase資格情報をブラウザへ出さない。
 import { postData, uploadSignedAsset } from './apiClient.js'
+import { isValidAccountPasswordLength } from './accountPassword.js'
 
 const MAX_ASSET_BYTES = 10 * 1024 * 1024
 const ALLOWED_ASSET_TYPES = new Set(['image/avif', 'image/gif', 'image/jpeg', 'image/png', 'image/webp'])
@@ -72,6 +73,9 @@ export async function deleteStore(storeId) {
  * service_role が必要なため Vercel Function 経由。管理者確認はHttpOnly Cookieで行う。
  */
 export async function createUserInStore({ email, password, storeId }) {
+  if (!isValidAccountPasswordLength(password)) {
+    throw new Error('パスワードは8文字以上かつUTF-8で72バイト以下にしてください')
+  }
   const res = await fetch('/api/admin/create-user', {
     method: 'POST',
     credentials: 'same-origin',

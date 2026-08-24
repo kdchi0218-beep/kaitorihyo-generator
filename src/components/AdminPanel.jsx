@@ -1,18 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createStore, deleteStore, createUserInStore } from '../lib/storeSync.js'
+import { generateAccountPassword, isValidAccountPasswordLength } from '../lib/accountPassword.js'
 import { browserAdminApi, usersForStore } from '../lib/browserAdmin.js'
 import HelpGuide from './HelpGuide.jsx'
-
-function genPassword() {
-  const a = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
-  const sym = '-_.!'
-  const pool = a + sym
-  const arr = new Uint32Array(16)
-  crypto.getRandomValues(arr)
-  let p = ''
-  for (let i = 0; i < 16; i++) p += pool[arr[i] % pool.length]
-  return p
-}
 
 function formatDate(value) {
   return value
@@ -92,6 +82,10 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
   const handleCreateUser = async (storeId, storeName) => {
     const form = memberForms[storeId] || {}
     if (!form.email || !form.password) { note('error', 'メールとパスワードを入力してください'); return }
+    if (!isValidAccountPasswordLength(form.password)) {
+      note('error', 'パスワードは8文字以上かつUTF-8で72バイト以下にしてください')
+      return
+    }
     setBusy(true); setMsg(null)
     try {
       await createUserInStore({ email: form.email.trim(), password: form.password, storeId })
@@ -206,16 +200,17 @@ export default function AdminPanel({ stores, onRefresh, onClose, canClose, userE
                 <div className="flex items-center gap-1">
                   <input
                     value={form.password || ''} onChange={e => setForm(s.id, { password: e.target.value })}
-                    placeholder="パスワード"
+                    type="password" minLength={8} maxLength={72} autoComplete="new-password"
+                    placeholder="パスワード（8文字以上）"
                     className="w-36 text-sm px-3 py-2 border border-[#d0d5dd] rounded outline-none focus:border-[#1e3a5f]"
                   />
-                  <button onClick={() => setForm(s.id, { password: genPassword() })}
+                  <button onClick={() => setForm(s.id, { password: generateAccountPassword() })}
                     className="text-[11px] px-2 py-2 rounded border border-[#d0d5dd] text-[#5a6577] hover:bg-[#f8f9fb] cursor-pointer whitespace-nowrap">生成</button>
                 </div>
                 <button onClick={() => handleCreateUser(s.id, s.name)} disabled={busy}
                   className="text-sm px-4 py-2 rounded bg-[#3d7c4f] text-white cursor-pointer disabled:opacity-60">アカウント発行</button>
               </div>
-              <p className="text-[10px] text-[#8c95a4] mt-1">発行後、ID（メール）とパスワードを店舗にLINE等で伝えてください。すぐログインできます。</p>
+              <p className="text-[10px] text-[#8c95a4] mt-1">パスワードは8文字以上・UTF-8で72バイト以下。「生成」は全推奨文字種を含む安全な16文字です。</p>
             </div>
           )
         })}
