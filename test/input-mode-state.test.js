@@ -5,10 +5,16 @@ import { GENRES } from '../src/lib/genres.js'
 import { INPUT_SOURCES } from '../src/lib/inputSources.js'
 import {
   applyImportedWorkspace,
+  applyImportedWorkspaceToProfile,
   clearActiveWorkspaceGenre,
   clearInputWorkspace,
+  createInputModeProfiles,
   createEmptyInputWorkspace,
+  getSelectedInputWorkspace,
+  hydrateInputModeProfiles,
   hydrateInputWorkspace,
+  selectInputModeProfile,
+  updateSelectedInputWorkspace,
 } from '../src/lib/inputModeState.js'
 
 const PAWAN_KEYS = GENRES.map(({ key }) => key)
@@ -264,4 +270,97 @@ test('形式マーカーのない旧単一ジャンル保存は、パワン機�
   assert.deepEqual(restored.visibleGenreKeys, ['pokemon'])
   assert.equal(restored.activeGenre, 'pokemon')
   assert.deepEqual(restored.genreData.pokemon.allCards.map(({ id }) => id), ['legacy-pikachu'])
+})
+
+test('入力形式をパワンへ切り替えた時点で、とんとんの未選択カードを画面に出さない', () => {
+  const tontonLoaded = applyImportedWorkspaceToProfile(
+    createInputModeProfiles(),
+    INPUT_SOURCES.TONTON,
+    { pokemon: { cards: [card('tonton-only')], total: 1 } },
+    { sheetUrl: 'excel:tonton:100.xlsx', loadedAt: 100 },
+  )
+
+  const tontonSelected = updateSelectedInputWorkspace(tontonLoaded, workspace => ({
+    ...workspace,
+    genreData: {
+      ...workspace.genreData,
+      pokemon: {
+        ...workspace.genreData.pokemon,
+        selected: [workspace.genreData.pokemon.allCards[0]],
+      },
+    },
+  }))
+  const pawanView = selectInputModeProfile(tontonSelected, INPUT_SOURCES.VAULT)
+  const visible = getSelectedInputWorkspace(pawanView)
+
+  assert.equal(pawanView.selectedInputSource, INPUT_SOURCES.VAULT)
+  assert.equal(visible.inputSource, INPUT_SOURCES.VAULT)
+  assert.deepEqual(visible.visibleGenreKeys, PAWAN_KEYS)
+  for (const key of PAWAN_KEYS) {
+    assert.deepEqual(visible.genreData[key].allCards, [], `${key} にとんとんカードを表示しない`)
+    assert.deepEqual(visible.genreData[key].selected, [], `${key} にとんとん選択を表示しない`)
+  }
+
+  const returnedTonton = getSelectedInputWorkspace(selectInputModeProfile(pawanView, INPUT_SOURCES.TONTON))
+  assert.deepEqual(returnedTonton.visibleGenreKeys, ['pokemon'])
+  assert.deepEqual(returnedTonton.genreData.pokemon.allCards.map(({ id }) => id), ['tonton-only'])
+  assert.deepEqual(returnedTonton.genreData.pokemon.selected.map(({ id }) => id), ['tonton-only'])
+})
+
+test('パワンのカードはとんとん形式の画面に漏れず、形式ごとの読み込み済みデータを独立して保つ', () => {
+  const withTonton = applyImportedWorkspaceToProfile(
+    createInputModeProfiles(),
+    INPUT_SOURCES.TONTON,
+    { onepiece: { cards: [card('tonton-luffy')], total: 1 } },
+    { sheetUrl: 'excel:tonton:onepiece.xlsx', loadedAt: 100 },
+  )
+  const withBoth = applyImportedWorkspaceToProfile(
+    selectInputModeProfile(withTonton, INPUT_SOURCES.VAULT),
+    INPUT_SOURCES.VAULT,
+    pawanResult({ pokemon: [card('pawan-pikachu')], weiss: [card('pawan-weiss')] }),
+    { sheetUrl: 'excel:vault:all.xlsx', loadedAt: 200 },
+  )
+
+  const pawanVisible = getSelectedInputWorkspace(withBoth)
+  assert.equal(withBoth.selectedInputSource, INPUT_SOURCES.VAULT)
+  assert.deepEqual(pawanVisible.genreData.pokemon.allCards.map(({ id }) => id), ['pawan-pikachu'])
+  assert.deepEqual(pawanVisible.genreData.weiss.allCards.map(({ id }) => id), ['pawan-weiss'])
+  assert.deepEqual(pawanVisible.genreData.onepiece.allCards, [])
+
+  const tontonVisible = getSelectedInputWorkspace(selectInputModeProfile(withBoth, INPUT_SOURCES.TONTON))
+  assert.equal(tontonVisible.inputSource, INPUT_SOURCES.TONTON)
+  assert.deepEqual(tontonVisible.visibleGenreKeys, ['onepiece'])
+  assert.deepEqual(tontonVisible.genreData.onepiece.allCards.map(({ id }) => id), ['tonton-luffy'])
+  assert.deepEqual(tontonVisible.genreData.pokemon.allCards, [])
+  assert.deepEqual(tontonVisible.genreData.weiss.allCards, [])
+})
+
+test('形式別ワークスペースはリロード後も保持され、不正な取込を拒否して既存の両形式データを壊さない', () => {
+  const withTonton = applyImportedWorkspaceToProfile(
+    createInputModeProfiles(),
+    INPUT_SOURCES.TONTON,
+    { pokemon: { cards: [card('saved-tonton')], total: 1 } },
+    { sheetUrl: 'excel:tonton:saved.xlsx', loadedAt: 100 },
+  )
+  const withBoth = applyImportedWorkspaceToProfile(
+    selectInputModeProfile(withTonton, INPUT_SOURCES.VAULT),
+    INPUT_SOURCES.VAULT,
+    pawanResult({ yugioh: [card('saved-pawan')] }),
+    { sheetUrl: 'excel:vault:saved.xlsx', loadedAt: 200 },
+  )
+  const restored = hydrateInputModeProfiles(JSON.parse(JSON.stringify(withBoth)))
+  const beforeFailedImport = JSON.parse(JSON.stringify(restored))
+
+  assert.throws(
+    () => applyImportedWorkspaceToProfile(restored, INPUT_SOURCES.TONTON, {}, { sheetUrl: 'broken.xlsx' }),
+    /対象ジャンル|読み取れません/,
+  )
+  assert.deepEqual(restored, beforeFailedImport)
+
+  const reloadedPawan = getSelectedInputWorkspace(restored)
+  assert.equal(reloadedPawan.inputSource, INPUT_SOURCES.VAULT)
+  assert.deepEqual(reloadedPawan.genreData.yugioh.allCards.map(({ id }) => id), ['saved-pawan'])
+
+  const reloadedTonton = getSelectedInputWorkspace(selectInputModeProfile(restored, INPUT_SOURCES.TONTON))
+  assert.deepEqual(reloadedTonton.genreData.pokemon.allCards.map(({ id }) => id), ['saved-tonton'])
 })

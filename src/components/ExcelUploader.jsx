@@ -1,18 +1,13 @@
 import { useState, useRef, useCallback } from 'react'
 import { GENRE_BY_KEY, GENRES } from '../lib/genres.js'
 import {
-  INPUT_SOURCES,
   INPUT_SOURCE_OPTIONS,
+  INPUT_SOURCES,
   parseInputFile,
 } from '../lib/inputSources.js'
 
-const inputSourceLabel = source => (
-  source === INPUT_SOURCES.VAULT ? 'パワン形式' : 'とんとん形式'
-)
-
 export default function ExcelUploader({
   inputSource,
-  loadedInputSource,
   onInputSourceChange,
   onImportComplete,
 }) {
@@ -50,7 +45,7 @@ export default function ExcelUploader({
         }
       }
 
-      // 解析が全て完了した後だけ1回の更新でワークスペースを入れ替える。
+      // 解析が全て完了した後だけ、対象形式のワークスペースを1回の更新で置き換える。
       // 失敗時はここに到達しないため、現在のタブ・カード・選択中は保たれる。
       onImportComplete({
         inputSource,
@@ -95,16 +90,10 @@ export default function ExcelUploader({
           )
         })}
       </div>
-      {inputSource !== loadedInputSource && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] leading-4 text-amber-800"
-        >
-          {inputSourceLabel(inputSource)}のExcel読込完了後に表示を切り替え、
-          現在の{inputSourceLabel(loadedInputSource)}の入力データと選択中を入れ替えます。
-        </div>
-      )}
+      <div className="rounded border border-[#d8e2ef] bg-[#f5f8fc] px-2 py-1.5 text-[10px] leading-4 text-[#5a6577]">
+        入力形式ごとにカード一覧と選択中を分けて保存します。
+        切り替えると、その形式のデータだけを表示します。
+      </div>
       <div
         className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
           dragging ? 'border-[#1e3a5f] bg-[#1e3a5f]/10' : 'border-[#d0d5dd] hover:border-[#1e3a5f] hover:bg-[#f8f9fb]'

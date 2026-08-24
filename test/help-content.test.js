@@ -96,6 +96,18 @@ test('使い方: 利用者向け手順書もパワン形式へ統一する', asy
   assert.doesNotMatch(help, /Vault形式/)
 })
 
+test('使い方: 入力形式ごとのカードと選択中を混ぜない案内がある', async () => {
+  const usage = await readFile(new URL('../docs/USAGE.md', import.meta.url), 'utf8')
+  const help = HELP_GUIDE.flatMap(section => section.items).join('\n')
+
+  for (const text of [usage, help]) {
+    assert.match(text, /形式ごとに.*別.*保存/)
+    assert.match(text, /選んだ形式|選択した形式/)
+    assert.match(text, /カード一覧.*選択中/)
+    assert.doesNotMatch(text, /前の入力形式のカード一覧.*消去/)
+  }
+})
+
 test('定番リスト: 画面内補足も実際の破壊的ボタン名で案内する', async () => {
   const source = await readFile(new URL('../src/components/CardListPanel.jsx', import.meta.url), 'utf8')
   assert.doesNotMatch(source, /選択中をこのリストに保存/)

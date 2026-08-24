@@ -55,11 +55,11 @@ test('リスト機能: パワン形式でだけ有効にする', async () => {
     readFile(new URL('../docs/USAGE.md', import.meta.url), 'utf8'),
   ])
 
-  assert.match(app, /inputSource: loadedInputSource/)
-  assert.match(sidebar, /supportsRegularLists\(loadedInputSource\)/)
+  assert.match(app, /getSelectedInputWorkspace\(modeProfiles\)/)
+  assert.match(sidebar, /supportsRegularLists\(inputSource\)/)
   assert.match(sidebar, /listEnabled &&/)
   assert.match(sidebar, /listedKeys=\{listEnabled \? listedKeys : null\}/)
-  assert.match(uploader, /loadedInputSource/)
+  assert.doesNotMatch(uploader, /loadedInputSource/)
   assert.match(uploader, /onImportComplete/)
   assert.match(help, /定番リスト[^。]*パワン形式|パワン形式[^。]*定番リスト/)
   assert.match(usage, /定番リスト[^。\n]*パワン形式|パワン形式[^。\n]*定番リスト/)
@@ -73,7 +73,8 @@ test('入力モード: とんとんと1ジャンル、パワンと5ジャンル�
     readFile(new URL('../src/components/ExcelUploader.jsx', import.meta.url), 'utf8'),
   ])
 
-  assert.match(app, /applyImportedWorkspace\(prev\.workspace/)
+  assert.match(app, /applyImportedWorkspaceToProfile\(prev\.modeProfiles/)
+  assert.match(app, /selectInputModeProfile\(prev\.modeProfiles/)
   assert.match(app, /visibleGenreKeys=\{visibleGenreKeys\}/)
   assert.match(app, /workspaceState\.storeId !== activeStoreId/)
   assert.match(sidebar, /visibleGenreKeys=\{visibleGenreKeys\}/)
@@ -81,6 +82,7 @@ test('入力モード: とんとんと1ジャンル、パワンと5ジャンル�
   assert.match(tabs, /GENRES\.filter\(\(\{ key \}\) => visible\.has\(key\)\)/)
   assert.equal((uploader.match(/onImportComplete\(\{/g) || []).length, 1)
   assert.doesNotMatch(uploader, /loadGenreCards\(/)
+  assert.match(uploader, /入力形式ごとにカード一覧と選択中を分けて保存/)
 })
 
 test('データ取得: スプシURL取得を画面と利用者向け案内から除外する', async () => {

@@ -5,6 +5,10 @@ const GENRE_KEYS = GENRES.map(({ key }) => key)
 const GENRE_KEY_SET = new Set(GENRE_KEYS)
 const TONTON_GENRE_KEYS = ['pokemon', 'onepiece']
 const TONTON_GENRE_KEY_SET = new Set(TONTON_GENRE_KEYS)
+// JSONから復元済み、またはこのモジュールの更新関数が返した状態だけを記録する。
+// これにより React の描画ごとにカード配列を正規化・複製し直さずに済む。
+const RUNTIME_PROFILES = new WeakSet()
+const RUNTIME_WORKSPACES = new WeakSet()
 
 function emptyGenre() {
   return { allCards: [], selected: [], sheetUrl: '', loadedAt: null }
@@ -32,12 +36,17 @@ function defaultActiveGenre(inputSource, candidate) {
 export function createEmptyInputWorkspace(inputSource = INPUT_SOURCES.TONTON, activeGenre) {
   const normalizedSource = isKnownInputSource(inputSource) ? inputSource : INPUT_SOURCES.TONTON
   const normalizedActive = defaultActiveGenre(normalizedSource, activeGenre)
-  return {
+  return markRuntimeWorkspace({
     inputSource: normalizedSource,
     visibleGenreKeys: visibleKeysFor(normalizedSource, normalizedActive),
     activeGenre: normalizedActive,
     genreData: createEmptyGenreData(),
-  }
+  })
+}
+
+function markRuntimeWorkspace(workspace) {
+  RUNTIME_WORKSPACES.add(workspace)
+  return workspace
 }
 
 function normalizeCardLists(value) {
@@ -102,16 +111,17 @@ function inferLegacyWorkspace(raw) {
     }
 
     const firstWithData = populatedKeys[0] || GENRE_KEYS[0]
-    return {
+    return markRuntimeWorkspace({
       ...createEmptyInputWorkspace(INPUT_SOURCES.VAULT, firstWithData),
       genreData,
-    }
+    })
   }
 
   return createEmptyInputWorkspace()
 }
 
 export function hydrateInputWorkspace(raw) {
+  if (RUNTIME_WORKSPACES.has(raw)) return raw
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return createEmptyInputWorkspace()
 
   // v2以降は入力形式とカードデータを同じペイロードで保存する。
@@ -136,10 +146,10 @@ export function hydrateInputWorkspace(raw) {
     const activeGenre = GENRE_KEY_SET.has(raw.activeGenre)
       ? raw.activeGenre
       : GENRE_KEYS.find(key => hasGenreData(genreData[key])) || GENRE_KEYS[0]
-    return {
+    return markRuntimeWorkspace({
       ...createEmptyInputWorkspace(INPUT_SOURCES.VAULT, activeGenre),
       genreData,
-    }
+    })
   }
 
   // 旧形式は5ジャンルのデータだけだったため、最新の読込マーカーから形式を復元する。
@@ -195,13 +205,13 @@ export function clearInputWorkspace(workspace) {
 export function clearActiveWorkspaceGenre(workspace, genreKey = workspace?.activeGenre) {
   const current = hydrateInputWorkspace(workspace)
   if (!current.visibleGenreKeys.includes(genreKey)) return current
-  return {
+  return markRuntimeWorkspace({
     ...current,
     genreData: {
       ...current.genreData,
       [genreKey]: emptyGenre(),
     },
-  }
+  })
 }
 
 export function replaceWorkspaceGenre(
@@ -213,7 +223,7 @@ export function replaceWorkspaceGenre(
   const current = hydrateInputWorkspace(workspace)
   if (current.inputSource !== INPUT_SOURCES.VAULT || !GENRE_KEY_SET.has(genreKey)) return current
   const nextCards = (Array.isArray(cards) ? cards : []).map(card => transformCard(card))
-  return {
+  return markRuntimeWorkspace({
     ...current,
     activeGenre: genreKey,
     genreData: {
@@ -225,10 +235,145 @@ export function replaceWorkspaceGenre(
         loadedAt: nextCards.length > 0 ? loadedAt : null,
       },
     },
-  }
+  })
 }
 
 export function setWorkspaceActiveGenre(workspace, genreKey) {
   if (!workspace?.visibleGenreKeys?.includes(genreKey)) return workspace
-  return { ...workspace, activeGenre: genreKey }
+  if (workspace.activeGenre === genreKey) return workspace
+  return markRuntimeWorkspace({ ...workspace, activeGenre: genreKey })
+}
+
+// 入力形式ごとの作業データを同一店舗内で並行して保持するための入れ物。
+// selectedInputSource は「現在画面に表示している形式」で、profiles 自体は両方を保持する。
+export function createInputModeProfiles() {
+  return markRuntimeProfiles({
+    selectedInputSource: INPUT_SOURCES.TONTON,
+    profiles: {
+      [INPUT_SOURCES.TONTON]: createEmptyInputWorkspace(INPUT_SOURCES.TONTON),
+      [INPUT_SOURCES.VAULT]: createEmptyInputWorkspace(INPUT_SOURCES.VAULT),
+    },
+  })
+}
+
+function markRuntimeProfiles(profiles) {
+  RUNTIME_PROFILES.add(profiles)
+  return profiles
+}
+
+function asRuntimeProfiles(profiles) {
+  return RUNTIME_PROFILES.has(profiles) ? profiles : hydrateInputModeProfiles(profiles)
+}
+
+function hydrateProfileWorkspace(rawWorkspace, inputSource) {
+  if (!rawWorkspace || typeof rawWorkspace !== 'object' || Array.isArray(rawWorkspace)) {
+    return createEmptyInputWorkspace(inputSource)
+  }
+
+  const workspace = hydrateInputWorkspace(rawWorkspace)
+  // 破損した保存値などで別形式のデータが入っていた場合、別プロファイルへ
+  // 混入させず安全に空にする。旧単一workspaceの移行は hydrateInputModeProfiles で扱う。
+  return workspace.inputSource === inputSource
+    ? workspace
+    : createEmptyInputWorkspace(inputSource)
+}
+
+function looksLikeRuntimeWorkspace(workspace, inputSource) {
+  if (!workspace || typeof workspace !== 'object' || Array.isArray(workspace)) return false
+  if (workspace.inputSource !== inputSource || !Array.isArray(workspace.visibleGenreKeys)) return false
+  if (!workspace.genreData || typeof workspace.genreData !== 'object') return false
+  return GENRE_KEYS.every(key => {
+    const genre = workspace.genreData[key]
+    return genre && Array.isArray(genre.allCards) && Array.isArray(genre.selected)
+  })
+}
+
+function runtimeWorkspaceOrHydrate(workspace, inputSource) {
+  if (RUNTIME_WORKSPACES.has(workspace)) return workspace
+  // updater は現在の正規化済みworkspaceから次のstateを作る。ここではカード配列を
+  // 複製せず、最低限の形だけ確認して信頼済みruntime stateとして登録する。
+  if (looksLikeRuntimeWorkspace(workspace, inputSource)) return markRuntimeWorkspace(workspace)
+  return hydrateProfileWorkspace(workspace, inputSource)
+}
+
+function isProfilePayload(raw) {
+  return Boolean(
+    raw
+    && typeof raw === 'object'
+    && !Array.isArray(raw)
+    && raw.profiles
+    && typeof raw.profiles === 'object'
+    && !Array.isArray(raw.profiles),
+  )
+}
+
+/**
+ * 形式別の保存値を復元する。旧バージョンの単一workspaceは、そのデータの形式側だけへ移す。
+ */
+export function hydrateInputModeProfiles(raw) {
+  if (RUNTIME_PROFILES.has(raw)) return raw
+
+  if (isProfilePayload(raw)) {
+    return markRuntimeProfiles({
+      selectedInputSource: isKnownInputSource(raw.selectedInputSource)
+        ? raw.selectedInputSource
+        : INPUT_SOURCES.TONTON,
+      profiles: {
+        [INPUT_SOURCES.TONTON]: hydrateProfileWorkspace(raw.profiles[INPUT_SOURCES.TONTON], INPUT_SOURCES.TONTON),
+        [INPUT_SOURCES.VAULT]: hydrateProfileWorkspace(raw.profiles[INPUT_SOURCES.VAULT], INPUT_SOURCES.VAULT),
+      },
+    })
+  }
+
+  const legacyWorkspace = hydrateInputWorkspace(raw)
+  const profiles = createInputModeProfiles()
+  profiles.selectedInputSource = legacyWorkspace.inputSource
+  profiles.profiles[legacyWorkspace.inputSource] = legacyWorkspace
+  return profiles
+}
+
+export function selectInputModeProfile(profiles, inputSource) {
+  const current = asRuntimeProfiles(profiles)
+  if (!isKnownInputSource(inputSource)) return current
+  if (current.selectedInputSource === inputSource) return current
+  return markRuntimeProfiles({ ...current, selectedInputSource: inputSource })
+}
+
+export function getSelectedInputWorkspace(profiles) {
+  const current = asRuntimeProfiles(profiles)
+  return current.profiles[current.selectedInputSource]
+}
+
+/** 選択中の形式だけを書き換え、もう一方の入力データは残す。 */
+export function updateSelectedInputWorkspace(profiles, updater) {
+  const current = asRuntimeProfiles(profiles)
+  if (typeof updater !== 'function') return current
+  const inputSource = current.selectedInputSource
+  const nextWorkspace = updater(current.profiles[inputSource])
+  if (nextWorkspace === current.profiles[inputSource]) return current
+  return markRuntimeProfiles({
+    ...current,
+    profiles: {
+      ...current.profiles,
+      [inputSource]: runtimeWorkspaceOrHydrate(nextWorkspace, inputSource),
+    },
+  })
+}
+
+/**
+ * 正常に解析できた対象形式だけを丸ごと置換する。
+ * applyImportedWorkspace が throw する場合は profiles に触れないため、呼出元の状態も不変。
+ */
+export function applyImportedWorkspaceToProfile(profiles, inputSource, result, options) {
+  if (!isKnownInputSource(inputSource)) throw new Error(`未対応の入力タイプです: ${inputSource}`)
+  const current = asRuntimeProfiles(profiles)
+  const imported = applyImportedWorkspace(current.profiles[inputSource], inputSource, result, options)
+  return markRuntimeProfiles({
+    ...current,
+    selectedInputSource: inputSource,
+    profiles: {
+      ...current.profiles,
+      [inputSource]: imported,
+    },
+  })
 }

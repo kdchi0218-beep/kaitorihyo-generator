@@ -27,7 +27,7 @@ export default function Sidebar({
   width = 440,
   stores, allStores = [], isAdmin, activeStoreId, setActiveStoreId, onOpenAdmin,
   activeGenre, setActiveGenre, genreMeta, visibleGenreKeys, loadGenreCards,
-  inputSource, setInputSource, loadedInputSource, applyInputImport,
+  inputSource, setInputSource, applyInputImport,
   allCards, setAllCards, cards, setCards, settings, updateSettings, setSettings,
   userEmail, onClearData, onLogout,
 }) {
@@ -35,7 +35,7 @@ export default function Sidebar({
   const genreLabel = GENRE_BY_KEY[activeGenre]?.label || activeGenre
   // このジャンルの全定番リストが覆っているカードキー（CardListPanelが算出 → CardSelectorのフィルタに渡す）
   const [listedKeys, setListedKeys] = useState(null)
-  const listEnabled = supportsRegularLists(loadedInputSource)
+  const listEnabled = supportsRegularLists(inputSource)
 
   useEffect(() => {
     if (!listEnabled) setListedKeys(null)
@@ -90,7 +90,6 @@ export default function Sidebar({
           <div className="text-[11px] font-semibold text-[#1e3a5f] mb-1">入力形式を選んでExcelを読み込み</div>
           <ExcelUploader
             inputSource={inputSource}
-            loadedInputSource={loadedInputSource}
             onInputSourceChange={setInputSource}
             onImportComplete={applyInputImport}
           />
@@ -181,6 +180,7 @@ export default function Sidebar({
             </div>
           )}
           <CardSelector
+            key={`${inputSource}:${activeGenre}`}
             allCards={allCards}
             setAllCards={setAllCards}
             cards={cards}

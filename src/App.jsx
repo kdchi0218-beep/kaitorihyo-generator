@@ -10,12 +10,15 @@ import { authApi } from './lib/authApi.js'
 import { checkIsAdmin, listMyStores, listAllStores, loadStoreSettings, saveStoreSettings } from './lib/storeSync.js'
 import { INPUT_SOURCES, normalizeInputSource } from './lib/inputSources.js'
 import {
-  applyImportedWorkspace,
+  applyImportedWorkspaceToProfile,
   clearActiveWorkspaceGenre,
-  createEmptyInputWorkspace,
-  hydrateInputWorkspace,
+  createInputModeProfiles,
+  getSelectedInputWorkspace,
+  hydrateInputModeProfiles,
   replaceWorkspaceGenre,
+  selectInputModeProfile,
   setWorkspaceActiveGenre,
+  updateSelectedInputWorkspace,
 } from './lib/inputModeState.js'
 
 // 価格設定を全カードに反映して price を再計算
@@ -186,69 +189,72 @@ function App() {
     setSettings(prev => ({ ...prev, [key]: value }))
   }, [])
 
-  // ---- 入力ワークスペース（店舗ごと・ローカルキャッシュ） ----
-  // 入力形式、表示タブ、カード、選択中を1つのstateで更新し、
-  // とんとんとパワンのデータが中間状態で混ざらないようにする。
+  // ---- 入力ワークスペース（店舗×入力形式ごと・ローカルキャッシュ） ----
+  // とんとんとパワンを別ワークスペースとして保持し、
+  // 選択中の入力形式のカードだけを画面に出す。
   const [workspaceState, setWorkspaceState] = useState(() => ({
     storeId: null,
-    workspace: createEmptyInputWorkspace(),
-    selectedInputSource: INPUT_SOURCES.TONTON,
+    modeProfiles: createInputModeProfiles(),
   }))
 
   // 店舗切替でその店のカードをローカルから復元
   // 過去バージョンのバグで壊れた選択状態（重複・null）が残っていても、復元時に必ず浄化する
   useEffect(() => {
     if (!activeStoreId) {
-      setWorkspaceState({ storeId: null, workspace: createEmptyInputWorkspace(), selectedInputSource: INPUT_SOURCES.TONTON })
+      setWorkspaceState({ storeId: null, modeProfiles: createInputModeProfiles() })
       return
     }
-    let restored = createEmptyInputWorkspace()
+    let restored = createInputModeProfiles()
     try {
       const raw = localStorage.getItem(`tonton_genre_${activeStoreId}`)
-      restored = hydrateInputWorkspace(raw ? JSON.parse(raw) : null)
-    } catch { restored = createEmptyInputWorkspace() }
+      restored = hydrateInputModeProfiles(raw ? JSON.parse(raw) : null)
+    } catch { restored = createInputModeProfiles() }
     setWorkspaceState({
       storeId: activeStoreId,
-      workspace: restored,
-      selectedInputSource: restored.inputSource,
+      modeProfiles: restored,
     })
   }, [activeStoreId])
 
-  // 入力形式とカードデータを同じペイロードで永続。
+  // 入力形式ごとのカードデータを1つのペイロードで永続。
   // storeIdが復元済みのstateと一致するときだけ保存し、店舗切替直後の前店舗データ誤書込みも防ぐ。
   useEffect(() => {
     if (!activeStoreId || workspaceState.storeId !== activeStoreId) return
     const key = `tonton_genre_${activeStoreId}`
-    try { localStorage.setItem(key, JSON.stringify(workspaceState.workspace)) }
+    try { localStorage.setItem(key, JSON.stringify(workspaceState.modeProfiles)) }
     catch {
-      // 容量超過: カード一覧は次回Excel再取込で復元できるので落とし、選択中（プレビューの中身）は守る
+      // 容量超過: 両形式のカード一覧は次回Excel再取込で復元できるので落とし、選択中は守る
       const slim = {
-        ...workspaceState.workspace,
-        genreData: Object.fromEntries(Object.entries(workspaceState.workspace.genreData)
-          .map(([genreKey, data]) => [genreKey, { ...data, allCards: [] }])),
+        ...workspaceState.modeProfiles,
+        profiles: Object.fromEntries(Object.entries(workspaceState.modeProfiles.profiles)
+          .map(([source, inputWorkspace]) => [source, {
+            ...inputWorkspace,
+            genreData: Object.fromEntries(Object.entries(inputWorkspace.genreData)
+              .map(([genreKey, data]) => [genreKey, { ...data, allCards: [] }])),
+          }])),
       }
       try { localStorage.setItem(key, JSON.stringify(slim)) }
       catch (e) { console.error('カードデータのローカル保存に失敗（容量超過）。リロード時はExcelを再取込してください', e) }
     }
-  }, [workspaceState.workspace, workspaceState.storeId, activeStoreId])
+  }, [workspaceState.modeProfiles, workspaceState.storeId, activeStoreId])
 
   const workspaceReady = workspaceState.storeId === activeStoreId
-  const workspace = workspaceReady ? workspaceState.workspace : createEmptyInputWorkspace()
-  const { genreData, activeGenre, inputSource: loadedInputSource, visibleGenreKeys } = workspace
-  const inputSource = workspaceReady ? workspaceState.selectedInputSource : loadedInputSource
+  const modeProfiles = workspaceReady ? workspaceState.modeProfiles : createInputModeProfiles()
+  const workspace = getSelectedInputWorkspace(modeProfiles)
+  const { genreData, activeGenre, inputSource, visibleGenreKeys } = workspace
 
   const updateWorkspace = useCallback((updater) => {
     setWorkspaceState(prev => {
       if (prev.storeId !== activeStoreId) return prev
-      const workspace = typeof updater === 'function' ? updater(prev.workspace) : updater
-      return { ...prev, workspace }
+      return { ...prev, modeProfiles: updateSelectedInputWorkspace(prev.modeProfiles, updater) }
     })
   }, [activeStoreId])
 
   const setInputSource = useCallback((nextSource) => {
     const normalized = normalizeInputSource(nextSource)
     setWorkspaceState(prev => (
-      prev.storeId === activeStoreId ? { ...prev, selectedInputSource: normalized } : prev
+      prev.storeId === activeStoreId
+        ? { ...prev, modeProfiles: selectInputModeProfile(prev.modeProfiles, normalized) }
+        : prev
     ))
   }, [activeStoreId])
 
@@ -269,7 +275,7 @@ function App() {
     // 店舗切替直後は設定ロード完了まで再計算しない（前店舗のカードに新店舗の価格設定を誤適用しないため）
     if (!settingsLoaded) return
     updateWorkspace(prev => ({ ...prev, genreData: recomputePrices(prev.genreData, pricing) }))
-  }, [pricing, settingsLoaded, updateWorkspace])
+  }, [pricing, settingsLoaded, updateWorkspace, inputSource])
 
   // アクティブジャンルのスライス
   const active = genreData[activeGenre] || { allCards: [], selected: [] }
@@ -307,15 +313,15 @@ function App() {
     }))
   }, [pricing, updateWorkspace])
 
-  // 全体Excelが正常に解析できた後だけ、旧形式の全入力データを消して原子的に切り替える。
+  // 全体Excelが正常に解析できた後だけ、対象の入力形式だけを原子的に置き換える。
   const applyInputImport = useCallback(({ inputSource: importedSource, result, sheetUrl }) => {
     setWorkspaceState(prev => {
       if (prev.storeId !== activeStoreId) return prev
-      const nextWorkspace = applyImportedWorkspace(prev.workspace, importedSource, result, {
+      const nextProfiles = applyImportedWorkspaceToProfile(prev.modeProfiles, importedSource, result, {
         sheetUrl,
         transformCard: card => ({ ...card, price: computeDisplayPrice(card.basePrice, pricing) }),
       })
-      return { ...prev, workspace: nextWorkspace, selectedInputSource: importedSource }
+      return { ...prev, modeProfiles: nextProfiles }
     })
   }, [activeStoreId, pricing])
 
@@ -381,7 +387,6 @@ function App() {
         visibleGenreKeys={visibleGenreKeys}
         inputSource={inputSource}
         setInputSource={setInputSource}
-        loadedInputSource={loadedInputSource}
         applyInputImport={applyInputImport}
         loadGenreCards={loadGenreCards}
         allCards={active.allCards}
