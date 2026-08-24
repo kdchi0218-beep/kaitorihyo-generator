@@ -1,12 +1,13 @@
 import { useState } from 'react'
 
-export default function AccordionSection({ title, defaultOpen = false, children }) {
+export default function AccordionSection({ title, defaultOpen = false, keepMounted = false, children }) {
   const [open, setOpen] = useState(defaultOpen)
 
   return (
     <div className="bg-[#f8f9fb] rounded-lg border border-[#e0e4ea] overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-[#1e3a5f] hover:bg-[#eef1f6] transition-colors cursor-pointer"
       >
         <span className="flex-1 text-left">{title}</span>
@@ -19,8 +20,8 @@ export default function AccordionSection({ title, defaultOpen = false, children 
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      {open && (
-        <div className="px-4 pb-4 pt-1 border-t border-[#e0e4ea]">
+      {(keepMounted || open) && (
+        <div hidden={!open} className="px-4 pb-4 pt-1 border-t border-[#e0e4ea]">
           {children}
         </div>
       )}

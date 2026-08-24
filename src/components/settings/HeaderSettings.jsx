@@ -1,16 +1,16 @@
 import { useRef } from 'react'
+import useSettingAssetUpload from '../../hooks/useSettingAssetUpload.js'
+import { SETTINGS_IMAGE_ACCEPT } from '../../lib/settingsAssets.js'
 import SettingRow, { SettingToggle, StepRange } from './SettingRow.jsx'
 
-export default function HeaderSettings({ settings, update }) {
+export default function HeaderSettings({ settings, update, storeId, onUploadStateChange }) {
   const logoRef = useRef()
-
-  const handleLogo = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => update('logoImage', ev.target.result)
-    reader.readAsDataURL(file)
-  }
+  const { uploading, uploadError, handleFileChange, clearUploadError } = useSettingAssetUpload({
+    storeId,
+    settingKey: 'logoImage',
+    update,
+    onUploadStateChange,
+  })
 
   return (
     <div className="space-y-2">
@@ -45,21 +45,26 @@ export default function HeaderSettings({ settings, update }) {
             <label className="text-xs text-[#5a6577] block mb-1">ロゴ画像</label>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => logoRef.current?.click()}
+                type="button"
+                onClick={() => { clearUploadError(); logoRef.current?.click() }}
+                disabled={uploading}
                 className="text-xs px-3 py-1.5 rounded bg-[#eef1f6] hover:bg-[#dfe3ea] text-[#5a6577] border border-[#d0d5dd] cursor-pointer"
               >
-                ロゴを選択
+                {uploading ? 'アップロード中...' : 'ロゴを選択'}
               </button>
               {settings.logoImage && (
                 <button
+                  type="button"
                   onClick={() => update('logoImage', null)}
+                  disabled={uploading}
                   className="text-xs px-2 py-1 rounded bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 cursor-pointer"
                 >
                   削除
                 </button>
               )}
-              <input ref={logoRef} type="file" accept="image/*" onChange={handleLogo} className="hidden" />
+              <input ref={logoRef} type="file" accept={SETTINGS_IMAGE_ACCEPT} onChange={handleFileChange} disabled={uploading} className="hidden" />
             </div>
+            {uploadError && <div role="alert" className="mt-1 text-[11px] text-red-600">{uploadError}</div>}
             {settings.logoImage && (
               <>
                 <img src={settings.logoImage} alt="ロゴ" className="mt-2 max-h-12 rounded" />

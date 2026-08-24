@@ -1,16 +1,16 @@
+import useSettingAssetUpload from '../../hooks/useSettingAssetUpload.js'
+import { SETTINGS_IMAGE_ACCEPT } from '../../lib/settingsAssets.js'
 import SettingRow, { SettingToggle, StepRange } from './SettingRow.jsx'
 
-export default function GridSettings({ settings, update, userFormat }) {
+export default function GridSettings({ settings, update, userFormat, storeId, onUploadStateChange }) {
   const defaultPlaceholder = userFormat === 'tonton' ? './card-back-onepiece.jpg' : './card-back.jpg'
   const totalSlots = settings.gridColumns * settings.gridRows
-
-  const handlePlaceholderUpload = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => update('placeholderImage', ev.target.result)
-    reader.readAsDataURL(file)
-  }
+  const { uploading, uploadError, handleFileChange, clearUploadError } = useSettingAssetUpload({
+    storeId,
+    settingKey: 'placeholderImage',
+    update,
+    onUploadStateChange,
+  })
 
   return (
     <div className="space-y-2">
@@ -45,22 +45,34 @@ export default function GridSettings({ settings, update, userFormat }) {
       <div className="pt-2 border-t border-[#e0e4ea] space-y-2">
         <SettingToggle label="空きスロットを埋める" checked={settings.fillEmptySlots} onChange={v => update('fillEmptySlots', v)} />
         {settings.fillEmptySlots && (
-          <div className="flex items-center gap-2">
-            {settings.placeholderImage && (
-              <img src={settings.placeholderImage} alt="" className="w-8 h-11 object-contain rounded border border-[#e0e4ea]" />
-            )}
-            <label className="text-xs px-2 py-1 rounded bg-[#eef1f6] hover:bg-[#dfe3ea] text-[#5a6577] border border-[#d0d5dd] cursor-pointer">
-              画像を変更
-              <input type="file" accept="image/*" onChange={handlePlaceholderUpload} className="hidden" />
-            </label>
-            {settings.placeholderImage !== defaultPlaceholder && (
-              <button
-                onClick={() => update('placeholderImage', defaultPlaceholder)}
-                className="text-[10px] text-[#8c95a4] hover:text-[#5a6577] cursor-pointer"
-              >
-                デフォルトに戻す
-              </button>
-            )}
+          <div>
+            <div className="flex items-center gap-2">
+              {settings.placeholderImage && (
+                <img src={settings.placeholderImage} alt="" className="w-8 h-11 object-contain rounded border border-[#e0e4ea]" />
+              )}
+              <label className={`text-xs px-2 py-1 rounded bg-[#eef1f6] hover:bg-[#dfe3ea] text-[#5a6577] border border-[#d0d5dd] ${uploading ? 'opacity-50' : 'cursor-pointer'}`}>
+                {uploading ? 'アップロード中...' : '画像を変更'}
+                <input
+                  type="file"
+                  accept={SETTINGS_IMAGE_ACCEPT}
+                  onClick={clearUploadError}
+                  onChange={handleFileChange}
+                  disabled={uploading}
+                  className="hidden"
+                />
+              </label>
+              {settings.placeholderImage !== defaultPlaceholder && (
+                <button
+                  type="button"
+                  onClick={() => update('placeholderImage', defaultPlaceholder)}
+                  disabled={uploading}
+                  className="text-[10px] text-[#8c95a4] hover:text-[#5a6577] cursor-pointer"
+                >
+                  デフォルトに戻す
+                </button>
+              )}
+            </div>
+            {uploadError && <div role="alert" className="mt-1 text-[11px] text-red-600">{uploadError}</div>}
           </div>
         )}
       </div>

@@ -2,6 +2,7 @@
 // 認証済みの同一オリジンBFFだけを利用し、Supabase資格情報をブラウザへ出さない。
 import { postData, uploadSignedAsset } from './apiClient.js'
 import { isValidAccountPasswordLength } from './accountPassword.js'
+import { persistSettingsAssets } from './settingsAssets.js'
 
 const MAX_ASSET_BYTES = 10 * 1024 * 1024
 const ALLOWED_ASSET_TYPES = new Set(['image/avif', 'image/gif', 'image/jpeg', 'image/png', 'image/webp'])
@@ -28,8 +29,10 @@ export async function loadStoreSettings(storeId) {
 }
 
 export async function saveStoreSettings(storeId, settings) {
-  const data = await postData('save_settings', { storeId, settings })
+  const persistedSettings = await persistSettingsAssets(storeId, settings, { upload: uploadAsset })
+  const data = await postData('save_settings', { storeId, settings: persistedSettings })
   if (!Array.isArray(data) || data.length === 0) throw new Error('店舗設定を保存できませんでした')
+  return persistedSettings
 }
 
 // テンプレートのCRUDは sharedTemplates.js（templatesテーブル・ジャンル別）に一本化済み。

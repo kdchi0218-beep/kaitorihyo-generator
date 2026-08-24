@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { listTemplates, saveTemplate, updateTemplate, deleteTemplate, renameTemplate } from '../lib/sharedTemplates.js'
 import { DEFAULT_SETTINGS } from '../lib/defaults.js'
+import { mergePersistedAssetUrls } from '../lib/settingsAssets.js'
 
 const ROUND_LABEL = { ceil: '繰り上げ', round: '四捨五入', floor: '切り捨て' }
 
@@ -24,7 +25,7 @@ function priceSummary(s = {}) {
 }
 
 // テンプレート（店舗内のみ共有・ジャンル別・Supabase）。同じ店舗のアカウント間で共有。
-export default function TemplateManager({ settings, setSettings, genre, storeId, stores = [] }) {
+export default function TemplateManager({ settings, setSettings, genre, storeId, stores = [], assetUploadBusy = false }) {
   const [templates, setTemplates] = useState([])
   const [newName, setNewName] = useState('')
   const [message, setMessage] = useState(null)
@@ -55,9 +56,12 @@ export default function TemplateManager({ settings, setSettings, genre, storeId,
 
   const handleSave = async () => {
     if (!newName.trim() || !storeId) return
+    if (assetUploadBusy) { showMessage('保存失敗: 画像のアップロードが終わってから保存してください'); return }
     setBusy(true)
     try {
-      await saveTemplate(storeId, genre, newName.trim(), settings)
+      const sourceSettings = settings
+      const persistedSettings = await saveTemplate(storeId, genre, newName.trim(), sourceSettings)
+      setSettings(current => mergePersistedAssetUrls(current, sourceSettings, persistedSettings))
       setNewName('')
       await reload()
       showMessage('保存しました（この店舗内で共有）')
@@ -65,15 +69,19 @@ export default function TemplateManager({ settings, setSettings, genre, storeId,
   }
 
   const handleLoad = (t) => {
+    if (assetUploadBusy) { showMessage('操作失敗: 画像のアップロードが終わってから操作してください'); return }
     setSettings(prev => ({ ...prev, ...t.settings }))
     showMessage(`「${t.name}」を読み込みました`)
   }
 
   const handleOverwrite = async (t) => {
+    if (assetUploadBusy) { showMessage('保存失敗: 画像のアップロードが終わってから保存してください'); return }
     if (!confirm(`「${t.name}」を今の設定で上書きしますか？`)) return
     setBusy(true)
     try {
-      await updateTemplate(t.id, t.name, settings)
+      const sourceSettings = settings
+      const persistedSettings = await updateTemplate(t.id, t.name, sourceSettings, storeId)
+      setSettings(current => mergePersistedAssetUrls(current, sourceSettings, persistedSettings))
       await reload()
       showMessage(`「${t.name}」を上書き保存しました`)
     } catch (e) { showMessage('上書き失敗: ' + e.message) } finally { setBusy(false) }
@@ -108,6 +116,7 @@ export default function TemplateManager({ settings, setSettings, genre, storeId,
   }
 
   const handleReset = () => {
+    if (assetUploadBusy) { showMessage('操作失敗: 画像のアップロードが終わってから操作してください'); return }
     setSettings({ ...DEFAULT_SETTINGS })
     showMessage('デフォルトに戻しました')
   }
@@ -127,7 +136,7 @@ export default function TemplateManager({ settings, setSettings, genre, storeId,
           />
           <button
             onClick={handleSave}
-            disabled={busy || !newName.trim()}
+            disabled={busy || assetUploadBusy || !newName.trim()}
             className="px-3 py-1 rounded bg-[#1e3a5f] hover:bg-[#162d4a] disabled:opacity-40 text-white text-xs cursor-pointer"
           >
             保存
@@ -135,6 +144,7 @@ export default function TemplateManager({ settings, setSettings, genre, storeId,
         </div>
         <button
           onClick={handleReset}
+          disabled={assetUploadBusy}
           className="mt-2 text-[11px] px-2 py-1 rounded bg-[#dfe3ea] hover:bg-[#d0d5dd] text-[#5a6577] border border-[#d0d5dd] cursor-pointer"
         >
           設定をデフォルトに戻す
@@ -169,8 +179,8 @@ export default function TemplateManager({ settings, setSettings, genre, storeId,
                   {otherStores.length > 0 && (
                     <button onClick={() => { setSendId(sendId === t.id ? null : t.id); setSendTarget('') }} className="text-[11px] px-1.5 py-0.5 rounded bg-[#3d7c4f]/10 border border-[#3d7c4f]/40 text-[#3d7c4f] hover:bg-[#3d7c4f]/20 cursor-pointer">送信</button>
                   )}
-                  <button onClick={() => handleLoad(t)} className="text-[11px] px-1.5 py-0.5 rounded bg-[#1e3a5f] hover:bg-[#162d4a] text-white cursor-pointer">読込</button>
-                  <button onClick={() => handleOverwrite(t)} disabled={busy} className="text-[11px] px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 cursor-pointer">上書</button>
+                  <button onClick={() => handleLoad(t)} disabled={assetUploadBusy} className="text-[11px] px-1.5 py-0.5 rounded bg-[#1e3a5f] hover:bg-[#162d4a] text-white cursor-pointer disabled:opacity-50">読込</button>
+                  <button onClick={() => handleOverwrite(t)} disabled={busy || assetUploadBusy} className="text-[11px] px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 cursor-pointer">上書</button>
                   <button onClick={() => handleDelete(t)} disabled={busy} className="text-[11px] px-1.5 py-0.5 rounded bg-red-100 hover:bg-red-200 text-red-600 cursor-pointer">削除</button>
                 </div>
                 {sendId === t.id && (

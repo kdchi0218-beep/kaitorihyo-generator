@@ -8,6 +8,8 @@ import { GENRES, GENRE_BY_KEY } from './lib/genres.js'
 import { computeDisplayPrice } from './lib/pricing.js'
 import { authApi } from './lib/authApi.js'
 import { checkIsAdmin, listMyStores, listAllStores, loadStoreSettings, saveStoreSettings } from './lib/storeSync.js'
+import { mergePersistedAssetUrls } from './lib/settingsAssets.js'
+import { createSettingsSaveQueue } from './lib/settingsSaveQueue.js'
 import { INPUT_SOURCES, normalizeInputSource } from './lib/inputSources.js'
 import {
   applyImportedWorkspaceToProfile,
@@ -166,6 +168,19 @@ function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const skipSaveRef = useRef(true)
+  const activeStoreIdRef = useRef(activeStoreId)
+  const settingsSaveQueueRef = useRef(null)
+  activeStoreIdRef.current = activeStoreId
+  if (!settingsSaveQueueRef.current) {
+    settingsSaveQueueRef.current = createSettingsSaveQueue({
+      save: saveStoreSettings,
+      onSaved: (savedStoreId, sourceSettings, persistedSettings) => {
+        if (activeStoreIdRef.current !== savedStoreId) return
+        setSettings(current => mergePersistedAssetUrls(current, sourceSettings, persistedSettings))
+      },
+      onError: error => console.error('店舗設定の保存に失敗しました', error),
+    })
+  }
 
   useEffect(() => {
     if (!activeStoreId) return
@@ -181,7 +196,10 @@ function App() {
   useEffect(() => {
     if (!activeStoreId || !settingsLoaded) return
     if (skipSaveRef.current) { skipSaveRef.current = false; return }
-    const t = setTimeout(() => { saveStoreSettings(activeStoreId, settings).catch(() => {}) }, 800)
+    const sourceSettings = settings
+    const t = setTimeout(() => {
+      settingsSaveQueueRef.current.enqueue(activeStoreId, sourceSettings)
+    }, 800)
     return () => clearTimeout(t)
   }, [settings, activeStoreId, settingsLoaded])
 

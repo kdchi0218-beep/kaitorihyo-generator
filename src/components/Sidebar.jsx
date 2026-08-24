@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import AccordionSection from './AccordionSection.jsx'
 import GenreTabs from './GenreTabs.jsx'
 import StoreSwitcher from './StoreSwitcher.jsx'
@@ -35,11 +35,25 @@ export default function Sidebar({
   const genreLabel = GENRE_BY_KEY[activeGenre]?.label || activeGenre
   // このジャンルの全定番リストが覆っているカードキー（CardListPanelが算出 → CardSelectorのフィルタに渡す）
   const [listedKeys, setListedKeys] = useState(null)
+  const [activeAssetUploads, setActiveAssetUploads] = useState({})
   const listEnabled = supportsRegularLists(inputSource)
+  const assetUploadBusy = Object.keys(activeAssetUploads).length > 0
+
+  const handleAssetUploadStateChange = useCallback((settingKey, isUploading, token) => {
+    setActiveAssetUploads(previous => {
+      if (isUploading) return { ...previous, [settingKey]: token }
+      if (previous[settingKey] !== token) return previous
+      const next = { ...previous }
+      delete next[settingKey]
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     if (!listEnabled) setListedKeys(null)
   }, [listEnabled])
+
+  useEffect(() => { setActiveAssetUploads({}) }, [activeStoreId])
 
   return (
     <div style={{ width, minWidth: width, flexShrink: 0 }} className="h-screen overflow-y-auto bg-white border-r border-[#e0e4ea] flex flex-col">
@@ -116,10 +130,10 @@ export default function Sidebar({
         </AccordionSection>
 
         <AccordionSection title={`テンプレート（${genreLabel}）`} defaultOpen>
-          <TemplateManager settings={settings} setSettings={setSettings} genre={activeGenre} storeId={activeStoreId} stores={allStores} />
+          <TemplateManager settings={settings} setSettings={setSettings} genre={activeGenre} storeId={activeStoreId} stores={allStores} assetUploadBusy={assetUploadBusy} />
         </AccordionSection>
 
-        <AccordionSection title="⚙ 見た目・価格の設定（設定後は折りたたみOK）">
+        <AccordionSection title="⚙ 見た目・価格の設定（設定後は折りたたみOK）" keepMounted>
           <div className="space-y-2">
             <AccordionSection title="買取価格ルール（掛け率・端数）">
               <PricingSettings settings={settings} update={updateSettings} />
@@ -129,16 +143,16 @@ export default function Sidebar({
               <CanvasSettings settings={settings} update={updateSettings} />
             </AccordionSection>
 
-            <AccordionSection title="背景設定">
-              <BackgroundSettings settings={settings} update={updateSettings} />
+            <AccordionSection title="背景設定" keepMounted>
+              <BackgroundSettings settings={settings} update={updateSettings} storeId={activeStoreId} onUploadStateChange={handleAssetUploadStateChange} />
             </AccordionSection>
 
-            <AccordionSection title="ヘッダー・ロゴ設定">
-              <HeaderSettings settings={settings} update={updateSettings} />
+            <AccordionSection title="ヘッダー・ロゴ設定" keepMounted>
+              <HeaderSettings settings={settings} update={updateSettings} storeId={activeStoreId} onUploadStateChange={handleAssetUploadStateChange} />
             </AccordionSection>
 
-            <AccordionSection title="カードグリッド設定">
-              <GridSettings settings={settings} update={updateSettings} userFormat={activeGenre} />
+            <AccordionSection title="カードグリッド設定" keepMounted>
+              <GridSettings settings={settings} update={updateSettings} userFormat={activeGenre} storeId={activeStoreId} onUploadStateChange={handleAssetUploadStateChange} />
             </AccordionSection>
 
             <AccordionSection title="カード枠設定">
