@@ -1,0 +1,16 @@
+{
+  "name": "dot-owner-notify",
+  "private": true,
+  "type": "module",
+  "description": "dotの能動チェック結果を本人のAimo公式LINEへ届け、KAI COCKPIT用に保存するCloudflare Worker",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply OWNER_NOTIFY_DB --local",
+    "migrate:remote": "wrangler d1 migrations apply OWNER_NOTIFY_DB --remote",
+    "test": "node --test --test-concurrency=1 test/e2e.test.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "4.147.0"
+  }
+}

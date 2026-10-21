@@ -1,0 +1,34 @@
+# dot → 本人のAimo公式LINE ＋ KAI COCKPIT 用の通知中継。
+# 秘密情報はこのファイルに書かない。`wrangler secret put` で入れる（../scripts/setup-mac.sh が案内する）:
+#   GAS_EXEC_URL        既存GAS「AI秘書公式LINE」の本番ウェブアプリURL（…/exec）
+#   GAS_API_KEY         既存GASのスクリプトプロパティ API_KEY と同じ値
+#   DOT_CONNECT_CODE    ChatGPTでdotを接続するときに入力する接続コード（Macで生成・キーチェーン保存）
+#   COCKPIT_READ_TOKEN  KAI COCKPIT が読み取りに使うトークン（読み取り専用）
+#   MCP_STATIC_TOKEN    任意。Mac上の検証用（終わったら削除してよい）
+
+name = "dot-owner-notify"
+main = "src/index.js"
+compatibility_date = "2026-09-15"
+workers_dev = true
+
+[[d1_databases]]
+binding = "OWNER_NOTIFY_DB"
+database_name = "dot-owner-notify"
+# setup-mac.sh が `wrangler d1 create` の結果で置き換える
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[vars]
+# ChatGPTコネクタのOAuth戻り先として許可するURLの先頭
+ALLOWED_REDIRECT_PREFIXES = "https://chatgpt.com/,https://chat.openai.com/"
+# 1日（日本時間）にLINEへ依頼する上限。暴走時の歯止め（LINE公式アカウントの月間送信数にも効く）
+DAILY_LINE_LIMIT = "20"
+ACCESS_TOKEN_TTL_SEC = "3600"
+REFRESH_TOKEN_TTL_SEC = "7776000"
+
+# 毎日 03:17 JST に古い認可コード・トークンを掃除する（通知本体は消さない）
+[triggers]
+crons = ["17 18 * * *"]
+
+[observability]
+enabled = true
